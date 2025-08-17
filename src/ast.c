@@ -1,9 +1,11 @@
 #include "ast.h"
+#include "token.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "ast_dyn_node_array.h"
+
 
 AstNode *ast_create_node(AstNodeType type)
 {
@@ -12,7 +14,7 @@ AstNode *ast_create_node(AstNodeType type)
         perror("malloc");
         exit(EXIT_FAILURE);
     }
-    node->type = type;
+    node->node_type = type;
     memset(&node->data, 0, sizeof(node->data)); // Zero-initialize data
     return node;
 }
@@ -31,7 +33,7 @@ static void free_node_array(AstNode **arr, size_t count) {
 void ast_node_free(AstNode *node) {
     if (!node) return;
 
-    switch (node->type) {
+    switch (node->node_type) {
         case AST_PROGRAM:
             astnode_array_free(&node->data.program.decls);
             break;
@@ -154,8 +156,8 @@ void ast_node_free(AstNode *node) {
             break;
 
         case AST_TYPE:
-            free(node->data.type.base_type);
-            astnode_array_free(&node->data.type.sizes);
+            free(node->data.ast_type.base_type);
+            astnode_array_free(&node->data.ast_type.sizes);
             break;
         
         case AST_INITIALIZER_LIST:
@@ -181,7 +183,7 @@ void ast_node_free(AstNode *node) {
 int is_lvalue_node(AstNode *node) {
     if (!node) return 0;
 
-    switch (node->type) {
+    switch (node->node_type) {
         case AST_IDENTIFIER:
             /* Simple variable name is an lvalue. */
             return 1;
@@ -319,7 +321,7 @@ void print_ast(AstNode *node, int indent) {
         return;
     }
 
-    switch (node->type) {
+    switch (node->node_type) {
         case AST_PROGRAM: {
             print_indent(indent);
             printf("Program:\n");
@@ -561,9 +563,9 @@ void print_ast(AstNode *node, int indent) {
         case AST_TYPE: {
             print_indent(indent);
 
-            const char *base = node->data.type.base_type ? node->data.type.base_type : "(anon)";
-            size_t pre = node->data.type.pre_stars;
-            size_t post = node->data.type.post_stars;
+            const char *base = node->data.ast_type.base_type ? node->data.ast_type.base_type : "(anon)";
+            size_t pre = node->data.ast_type.pre_stars;
+            size_t post = node->data.ast_type.post_stars;
 
 
             printf("Base-type: ");
@@ -572,9 +574,9 @@ void print_ast(AstNode *node, int indent) {
 
 
             /* array dimensions inline */
-            size_t n = astnode_array_count(&node->data.type.sizes);
+            size_t n = astnode_array_count(&node->data.ast_type.sizes);
             for (size_t i = 0; i < n; ++i) {
-                AstNode *dim = astnode_array_get(&node->data.type.sizes, i);
+                AstNode *dim = astnode_array_get(&node->data.ast_type.sizes, i);
                 putchar('[');
                 if (dim) {
                    printf("dim %d", i);
@@ -591,7 +593,7 @@ void print_ast(AstNode *node, int indent) {
                 print_indent(indent);
                 printf("ArrayDims:\n");
                 for (size_t i = 0; i < n; ++i) {
-                    AstNode *dim = astnode_array_get(&node->data.type.sizes, i);
+                    AstNode *dim = astnode_array_get(&node->data.ast_type.sizes, i);
                     print_indent(indent + 1);
                     printf("Dim %zu:\n", i);
                     if (dim) {
@@ -617,7 +619,7 @@ void print_ast(AstNode *node, int indent) {
 
         default: {
             print_indent(indent);
-            printf("Unhandled node type: %d\n", (int)node->type);
+            printf("Unhandled node type: %d\n", (int)node->node_type);
             break;
         }
     }

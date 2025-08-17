@@ -2,8 +2,7 @@
 #define SCOPE_H
 
 #include "symbol_table.h"
-#include "type.h"
-#include "ast.h"
+#include "type_from_ast.h"
 
 typedef struct Scope {
     SymbolTable *variables;

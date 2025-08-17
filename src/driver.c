@@ -11,12 +11,7 @@
 #include "ast_parse_statements.h"
 #include "scope.h"
 
-/* forward to semantic helpers implemented elsewhere (your code) */
-extern int symbol_table_construction(Scope *global_scope, AstProgram *program);
-extern void scope_print(Scope *scope);
-extern void free_scope_maps(Scope *s); /* if you added it earlier; otherwise remove call */
 
-/* ---- Timer helpers (simple wrapper around CLOCK_MONOTONIC) ---- */
 typedef struct {
     struct timespec start;
     double ms;

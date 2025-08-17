@@ -126,7 +126,7 @@ int symbol_table_construction(Scope *global_scope, AstProgram *program) {
     for (size_t i = 0; i < n; ++i) {
         AstNode *decl = astnode_array_get(&program->decls, i);
         if (!decl) continue;
-        switch (decl->type)
+        switch (decl->node_type)
         {
             case AST_FUNCTION_DECLARATION: {
 
@@ -171,7 +171,7 @@ int symbol_table_construction(Scope *global_scope, AstProgram *program) {
                     return -1;
                 }
 
-                Type *vtype = asttype_to_type(&vd->type->data.type);
+                Type *vtype = asttype_to_type(&vd->type->data.ast_type);
                 if (!vtype) {
                     fprintf(stderr, "symbol_table_construction: failed to create type for variable '%s'\n", name);
                     return -1;

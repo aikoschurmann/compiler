@@ -2,7 +2,8 @@
 
 #include <stddef.h>
 #include "token.h"
-#include "ast_dyn_node_array.h"
+#include "ast_dyn_node_array.h" /* your dynamic array of AstNode* */
+#include "type.h"
 
 typedef enum {
     AST_PROGRAM,
@@ -10,7 +11,7 @@ typedef enum {
     /* declarations */
     AST_VARIABLE_DECLARATION,
     AST_FUNCTION_DECLARATION,
-    AST_PARAM,                /* function parameter */
+    AST_PARAM,
 
     /* statements */
     AST_BLOCK,
@@ -26,11 +27,11 @@ typedef enum {
     AST_LITERAL,
     AST_IDENTIFIER,
     AST_BINARY_EXPR,
-    AST_UNARY_EXPR,           /* includes !expr, -expr, +expr, &expr ++expr --expr */
-    AST_POSTFIX_EXPR,         /* for ++/-- and generic postfix chaining */
-    AST_ASSIGNMENT_EXPR,      /* includes =, +=, -=, ... via op field */
-    AST_CALL_EXPR,            /* functtion(args...) */
-    AST_SUBSCRIPT_EXPR,       /* array[index] */
+    AST_UNARY_EXPR,
+    AST_POSTFIX_EXPR,
+    AST_ASSIGNMENT_EXPR,
+    AST_CALL_EXPR,
+    AST_SUBSCRIPT_EXPR,
 
     /* types */
     AST_TYPE,
@@ -39,14 +40,15 @@ typedef enum {
 
 } AstNodeType;
 
-typedef enum { OP_NULL,
-               OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD,
-               OP_EQ, OP_NEQ, OP_LT, OP_GT, OP_LE, OP_GE,
-               OP_AND, OP_OR, OP_NOT,
-               OP_ASSIGN, OP_PLUS_EQ, OP_MINUS_EQ, 
-               OP_DEREF, OP_ADRESS, 
-               OP_POST_INC, OP_POST_DEC, OP_PRE_INC, OP_PRE_DEC } OpKind;
-
+typedef enum {
+    OP_NULL,
+    OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD,
+    OP_EQ, OP_NEQ, OP_LT, OP_GT, OP_LE, OP_GE,
+    OP_AND, OP_OR, OP_NOT,
+    OP_ASSIGN, OP_PLUS_EQ, OP_MINUS_EQ,
+    OP_DEREF, OP_ADRESS,
+    OP_POST_INC, OP_POST_DEC, OP_PRE_INC, OP_PRE_DEC
+} OpKind;
 
 typedef struct AstNode AstNode;
 
@@ -55,108 +57,84 @@ typedef struct {
 } AstProgram;
 
 typedef struct {
-    AstNode *type;           /* type of the variable */
-    char *name;              /* variable name */
-    AstNode *initializer;    /* optional initializer expression */
+    AstNode *type;           /* type node */
+    char *name;
+    AstNode *initializer;    /* optional */
 } AstVariableDeclaration;
 
 typedef struct {
-    AstNode *return_type;    /* return type of the function */
-    char *name;              /* function name */
-    AstNodeArray params;     /* function parameters */
-    AstNode *body;           /* function body (block) */
+    AstNode *return_type;    /* AstNode of AST_TYPE */
+    char *name;
+    AstNodeArray params;     /* AstParam nodes */
+    AstNode *body;           /* AstBlock */
 } AstFunctionDeclaration;
 
-
-
 typedef struct {
-    char *name;              /* parameter name */
-    AstNode *type;           /* parameter type */
+    char *name;
+    AstNode *type;           /* AST_TYPE node */
 } AstParam;
 
 typedef struct {
-    AstNodeArray statements; /* statements in the block */
+    AstNodeArray statements;
 } AstBlock;
 
 typedef struct {
-    AstNode *condition;      /* condition expression */
-    AstNode *then_branch;    /* then branch (block) */
-    AstNode *else_branch;    /* else branch (block), optional */
+    AstNode *condition;
+    AstNode *then_branch;
+    AstNode *else_branch;
 } AstIfStatement;
 
 typedef struct {
-    AstNode *condition;      /* condition expression */
-    AstNode *body;           /* body of the loop (block) */
+    AstNode *condition;
+    AstNode *body;
 } AstWhileStatement;
 
 typedef struct {
-    AstNode *init;           /* initialization statement (optional) */
-    AstNode *condition;      /* loop condition (optional) */
-    AstNode *post;           /* post-expression (optional) */
-    AstNode *body;           /* body of the loop (block) */
+    AstNode *init;
+    AstNode *condition;
+    AstNode *post;
+    AstNode *body;
 } AstForStatement;
 
 typedef struct {
-    AstNode *expression;     /* expression to return */
+    AstNode *expression;
 } AstReturnStatement;
 
-typedef struct {
-    // Break statement, typically used to exit loops
-} AstBreakStatement;
+typedef struct { } AstBreakStatement;
+typedef struct { } AstContinueStatement;
 
 typedef struct {
-    // Continue statement, typically used to skip to the next iteration of a loop
-} AstContinueStatement;
-
-typedef struct {
-    AstNode *expression;     /* expression to evaluate */
+    AstNode *expression;
 } AstExprStatement;
 
-
-typedef struct { char *value;}      AstLiteral;
+/* small expression structs */
+typedef struct { char *value; } AstLiteral;
 typedef struct { char *identifier; } AstIdentifier;
 typedef struct { AstNode *left; AstNode *right; OpKind op; } AstBinaryExpr;
 typedef struct { OpKind op; AstNode *expr; } AstUnaryExpr;
 typedef struct { AstNode *expr; OpKind op; } AstPostfixExpr;
+typedef struct { AstNode *lvalue; AstNode *rvalue; OpKind op; } AstAssignmentExpr;
+typedef struct { AstNode *callee; AstNodeArray args; } AstCallExpr;
+typedef struct { AstNode *target; AstNode *index; } AstSubscriptExpr;
 
+/* AST representation of a type (syntactic): e.g. i64*[10]*  */
 typedef struct {
-    AstNode *lvalue;         /* left-hand side (variable, array, etc.) */
-    AstNode *rvalue;         /* right-hand side (expression) */
-    OpKind op;               /* assignment operator (e.g., =, +=, -=) */
-} AstAssignmentExpr;
-
-typedef struct {
-    AstNode *callee;         /* function being called */
-    AstNodeArray args;
-} AstCallExpr;
-
-typedef struct {
-    AstNode *target;         /* expression that evaluates to array/pointer */
-    AstNode *index;          /* index expression */
-} AstSubscriptExpr;
-
-
-// int64*[10][20]**
-// pointer pointer to an [10][20] array of int64 pointers
-typedef struct {
-    char *base_type;              /* base type name (e.g., "i32", "f64") */
-    
-    AstNodeArray sizes;
-
-    size_t pre_stars;        /* number of '*' before the first '['  */
-    size_t post_stars;       /* number of '*' after the last ']'     */
-
-    /* const qualifiers */
-    int base_is_const;       /* 'const' on the base type (const i32) */
-
+    char *base_type;         /* name like "i32", "i64" */
+    AstNodeArray sizes;      /* array of expressions for sizes (may be empty) */
+    size_t pre_stars;        /* '*' before first '[' */
+    size_t post_stars;       /* '*' after last ']' */
+    int base_is_const;       /* const on base */
 } AstType;
 
 typedef struct {
     AstNodeArray elements;
-} AstInitilizeList;
+} AstInitializeList;
 
 struct AstNode {
-    AstNodeType type;        /* type of the AST node */
+    AstNodeType node_type;   /* variant tag */
+    int is_const_expr;       /* set by semantic analysis (1 if expression is compile-time const) */
+    Type *sem_type;          /* semantic type computed in analysis (nullable) */
+
     union {
         AstProgram program;
         AstVariableDeclaration variable_declaration;
@@ -180,21 +158,16 @@ struct AstNode {
         AstCallExpr call_expr;
         AstSubscriptExpr subscript_expr;
 
-        AstType type;          /* type node */
-        AstInitilizeList initializer_list; /* initializer list for arrays or structs */
-    } data;                  /* union to hold different node types */
+        AstType ast_type;
+        AstInitializeList initializer_list;
+    } data;
 };
 
+/* AST helper prototypes (implementations are up to you) */
 AstNode *ast_create_node(AstNodeType type);
-void print_ast(AstNode *node, int indent);
-
 void ast_node_free(AstNode *node);
-
+void print_ast(AstNode *node, int indent);
 void ast_program_push(AstProgram *program, AstNode *declaration);
 void ast_argument_push(AstCallExpr *list, AstNode *argument);
-
 int is_lvalue_node(AstNode *node);
-
 int is_assignment_op(TokenType type);
-
-void print_ast(AstNode *node, int indent);
