@@ -50,6 +50,23 @@ typedef enum {
     OP_POST_INC, OP_POST_DEC, OP_PRE_INC, OP_PRE_DEC
 } OpKind;
 
+typedef enum {
+    INT_LITERAL,
+    FLOAT_LITERAL,
+    BOOL_LITERAL,
+    LIT_UNKNOWN /* used for error handling, not a real literal type */
+} LiteralType;
+
+typedef struct {
+    LiteralType kind;
+    union {
+        long long   int_val;
+        double      float_val;
+        int         bool_val;   /* 0 or 1 */
+    };
+} ConstValue;
+
+
 typedef struct AstNode AstNode;
 
 typedef struct {
@@ -108,7 +125,7 @@ typedef struct {
 } AstExprStatement;
 
 /* small expression structs */
-typedef struct { char *value; } AstLiteral;
+typedef struct { char *value; LiteralType type; } AstLiteral;
 typedef struct { char *identifier; } AstIdentifier;
 typedef struct { AstNode *left; AstNode *right; OpKind op; } AstBinaryExpr;
 typedef struct { OpKind op; AstNode *expr; } AstUnaryExpr;
@@ -130,10 +147,48 @@ typedef struct {
     AstNodeArray elements;
 } AstInitializeList;
 
+/* Represents one node in the abstract syntax tree (AST). */
+/* Represents a node in the abstract syntax tree (AST). */
 struct AstNode {
-    AstNodeType node_type;   /* variant tag */
-    int is_const_expr;       /* set by semantic analysis (1 if expression is compile-time const) */
-    Type *sem_type;          /* semantic type computed in analysis (nullable) */
+    AstNodeType node_type;    
+
+    /*
+     * is_const_expr:
+     *   - Set to 1 if the language semantics guarantee that this node
+     *     is a constant expression (i.e., it can be evaluated at compile time
+     *     without side effects).
+     *   - Set to 0 otherwise.
+     *
+     * Examples:
+     *   const x = 5 + 6;    --> x.init_expr.is_const_expr = 1
+     *   y = x + 2;          --> (x + 2).is_const_expr = 0
+     */
+    int is_const_expr;
+
+    /*
+     * sem_type:
+     *   - The type determined during semantic analysis.
+     *   - Nullable until the type is resolved.
+     *   - Example: for `42`, sem_type = i64; for `true`, sem_type = bool.
+     *   - Ownership: each AST node owns its Type, so it should be freed
+     *     when the node is freed.
+     */
+    Type *sem_type;
+
+    /*
+     * const_value:
+     *   - Stores the compile-time evaluated value of this expression, if known.
+     *   - Can be set even if is_const_expr = 0 to support constant folding
+     *     and other optimizations.
+     *
+     * Examples:
+     *   a: i64 = 5;          --> a.is_const_expr = 0, a.const_value = 5
+     *   b: i64 = a + 6;      --> b.is_const_expr = 0, b.const_value = 11
+     *   const c = 2 + 3;     --> c.is_const_expr = 1, c.const_value = 5
+     *
+     *   Note: ConstValue is a struct capable of holding int, float, bool, etc.
+     */
+    ConstValue *const_value;
 
     union {
         AstProgram program;
@@ -162,6 +217,8 @@ struct AstNode {
         AstInitializeList initializer_list;
     } data;
 };
+
+
 
 /* AST helper prototypes (implementations are up to you) */
 AstNode *ast_create_node(AstNodeType type);

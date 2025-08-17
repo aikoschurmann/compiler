@@ -9,7 +9,7 @@ A small C implementation of a toy programming language. It currently performs:
 ## Language Snapshot
 Supports:
 - Variable declarations (with `const`, arrays, pointer-like postfix stars)
-- Primitive types: i32, i64, f32, f64, bool, str
+- Primitive types: i32, i64, f32, f64, bool
 - Functions (single return type, parameters, recursion)
 - Expressions: literals, identifiers, prefix/postfix ++/--, unary ops, binary ops with precedence, assignment / compound assignment chaining
 - Control flow: if / else-if / else, while, for (C-style), break, continue, return

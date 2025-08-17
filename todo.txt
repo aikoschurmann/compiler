@@ -1,0 +1,4 @@
+fn(a: const i32, ...) -> const i32 { ... };
+
+const in params and return not implemented 
+not sure if it makes sense in return tho

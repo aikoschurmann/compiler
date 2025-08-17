@@ -203,7 +203,7 @@ static void run_all_tests(void) {
     /* ----- Declarations & simple constructs ----- */
     RUN("x: i32 = 10;", "simple variable declaration", false);
     RUN("x: i32;", "variable declaration without initializer", false);
-    RUN("name: str = \"hello\";", "string variable declaration", false);
+    RUN("y: i32 = 10 + 15 + x;", "variable declaration with expression", false);
 
     /* Parse errors for malformed declarations */
     RUN("x = 10;", "missing type declaration", true);

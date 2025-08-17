@@ -14,10 +14,19 @@ AstNode *ast_create_node(AstNodeType type)
         perror("malloc");
         exit(EXIT_FAILURE);
     }
+
+    /* Zero entire node (including union and metadata fields) */
+    memset(node, 0, sizeof(*node));
+
     node->node_type = type;
-    memset(&node->data, 0, sizeof(node->data)); // Zero-initialize data
+    /* explicit defaults (redundant due to memset, but clearer) */
+    node->is_const_expr = 0;
+    node->sem_type = NULL;
+    node->const_value = NULL;
+
     return node;
 }
+
 
 
 /* Helper: free an array of AstNode* items (calls ast_node_free on each) */
@@ -32,6 +41,13 @@ static void free_node_array(AstNode **arr, size_t count) {
 /* Main recursive free function */
 void ast_node_free(AstNode *node) {
     if (!node) return;
+
+    /* Free the union data based on node type */
+    if (node->const_value) {
+        free(node->const_value);
+    }
+
+    if (node->sem_type) type_free(node->sem_type);
 
     switch (node->node_type) {
         case AST_PROGRAM:
@@ -486,7 +502,21 @@ void print_ast(AstNode *node, int indent) {
 
         case AST_LITERAL: {
             print_indent(indent);
-            printf("Literal: %s\n", node->data.literal.value ? node->data.literal.value : "(null)");
+            printf("Literal: ");
+            switch (node->data.literal.type) {
+                case INT_LITERAL:
+                    printf("Integer: %s\n", node->data.literal.value ? node->data.literal.value : "(null)");
+                    break;
+                case FLOAT_LITERAL:
+                    printf("Float: %s\n", node->data.literal.value ? node->data.literal.value : "(null)");
+                    break;
+                case BOOL_LITERAL:
+                    printf("Boolean: %s\n", node->data.literal.value ? node->data.literal.value : "(null)");
+                    break;
+                case LIT_UNKNOWN:
+                    printf("Unknown literal type (should not happen)\n");
+                    break;
+            }
             break;
         }
 

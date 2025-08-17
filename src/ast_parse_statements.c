@@ -847,6 +847,16 @@ AstNode *parse_postfix(Parser *p, ParseError *err) {
     return primary;
 }
 
+LiteralType get_literal_type(TokenType type) {
+    switch (type) {
+        case TOK_INTEGER: return INT_LITERAL;
+        case TOK_FLOAT:   return FLOAT_LITERAL;
+        case TOK_TRUE:
+        case TOK_FALSE:  return BOOL_LITERAL;
+        default:         return LIT_UNKNOWN; // not a literal type
+    }
+}
+
 /*  <Primary> ::= INTEGER | FLOAT | BOOLEAN
              | CHAR_LITERAL | IDENTIFIER
              | LPAREN <Expression> RPAREN*/
@@ -861,12 +871,18 @@ AstNode *parse_primary(Parser *p, ParseError *err) {
         case TOK_INTEGER:
         case TOK_FLOAT:
         case TOK_TRUE:
-        case TOK_FALSE:
-        case TOK_STRING: {
+        case TOK_FALSE:{
             /* Parse literals */
             AstNode *literal = ast_create_node(AST_LITERAL);
             if (!literal) {
                 if (err) create_parse_error(err, "out of memory creating literal node", p);
+                return NULL;
+            }
+
+            literal->data.literal.type = get_literal_type(token->type);
+            if (literal->data.literal.type == LIT_UNKNOWN) {
+                if (err) create_parse_error(err, "unexpected token type for literal", p);
+                ast_node_free(literal);
                 return NULL;
             }
             literal->data.literal.value = token->lexeme ? strdup(token->lexeme) : NULL;
