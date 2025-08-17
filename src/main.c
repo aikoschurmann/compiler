@@ -17,6 +17,8 @@
 #include "parser.h"
 #include "ast_parse_statements.h"
 
+#include "semantics.h"
+
 /* -------------------------------------------------------------------------- */
 /* Compiler driver types / options                                             */
 /* -------------------------------------------------------------------------- */
@@ -586,5 +588,33 @@ int main(int argc, char **argv) {
     CompilerOptions opts;
     if (!parse_options(argc, argv, &opts)) return EXIT_FAILURE;
     run_all_tests(); // Run predefined tests before processing the main file
-    return run_compiler(&opts);
+    run_compiler(&opts);
+
+    // Create AST type: const i64**[10][20]
+    AstNode ast_type_node;
+    ast_type_node.type = AST_TYPE;
+    ast_type_node.data.type.base_type = strdup("i64");
+    ast_type_node.data.type.base_is_const = 1;
+    ast_type_node.data.type.pre_stars = 2;   // ** before the arrays
+    ast_type_node.data.type.post_stars = 3;  // no stars after
+    astnode_array_init(&ast_type_node.data.type.sizes);
+    
+    // Create size expressions (normally these would be parsed expressions)
+    AstNode *size1 = ast_create_node(AST_LITERAL);
+    size1->data.literal.value = strdup("10");
+    AstNode *size2 = ast_create_node(AST_LITERAL);
+    size2->data.literal.value = strdup("20");
+    
+    astnode_array_push(&ast_type_node.data.type.sizes, size1);
+    astnode_array_push(&ast_type_node.data.type.sizes, size2);
+    
+    // Convert to semantic Type (this function needs to be implemented)
+    Type *semantic_type = asttype_to_type(&ast_type_node.data.type);
+    type_print(semantic_type);
+
+    // Clean up AST type
+    astnode_array_free(&ast_type_node.data.type.sizes);
+    free(ast_type_node.data.type.base_type);
+    
+    return 0;
 }

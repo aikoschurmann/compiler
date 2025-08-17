@@ -136,7 +136,8 @@ typedef struct {
 } AstSubscriptExpr;
 
 
-
+// int64*[10][20]**
+// pointer pointer to an [10][20] array of int64 pointers
 typedef struct {
     char *base_type;              /* base type name (e.g., "i32", "f64") */
     
