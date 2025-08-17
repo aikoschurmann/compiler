@@ -6,13 +6,19 @@
 #include "type.h"
 
 
+typedef struct {
+    char *name;
+    Type *sem_type;
+    int is_const_expr;
+} Symbol;
+
 /* SymbolTable: a typed wrapper around the generic HashMap (string -> Type*) */
 typedef struct {
     HashMap *table;
 
     /* ownership helpers (can be replaced after create) */
     void (*free_key)(char*);
-    void (*free_value)(Type*);
+    void (*free_value)(Symbol*);
 
     /* hashing / comparison (can be replaced after create) */
     size_t (*hash)(char*);
@@ -25,10 +31,10 @@ void symbol_table_destroy(SymbolTable* table);
 
 /* Insert or update (key is duplicated) */
 /* On success, ownership of `value` is transferred to the symbol table. */
-bool symbol_table_put(SymbolTable* table, const char* key, Type* value);
+bool symbol_table_put(SymbolTable* table, const char* key, Symbol* value);
 
 /* Lookup: returns the stored Type* or NULL if not found (does not transfer ownership) */
-Type* symbol_table_get(SymbolTable* table, const char* key);
+Symbol* symbol_table_get(SymbolTable* table, const char* key);
 
 /* Remove: frees key/value using configured free functions */
 bool symbol_table_remove(SymbolTable* table, const char* key);
@@ -42,5 +48,5 @@ size_t symbol_table_size(SymbolTable* table);
 /* Iterate: callback gets (key, value) for each entry */
 void symbol_table_foreach(
     SymbolTable* table,
-    void (*func)(char* key, Type* value)
+    void (*func)(char* key, Symbol* value)
 );

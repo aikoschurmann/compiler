@@ -24,6 +24,7 @@ static int default_str_cmp(char* a, char* b) {
 }
 
 
+
 SymbolTable* symbol_table_create(size_t bucket_count) {
     SymbolTable *st = malloc(sizeof(*st));
     if (!st) return NULL;
@@ -54,7 +55,7 @@ void symbol_table_destroy(SymbolTable* table) {
     free(table);
 }
 
-bool symbol_table_put(SymbolTable* table, const char* key, Type* value) {
+bool symbol_table_put(SymbolTable* table, const char* key, Symbol* value) {
     if (!table || !key) return false;
 
     /* duplicate key so caller keeps ownership of their original string */
@@ -75,7 +76,7 @@ bool symbol_table_put(SymbolTable* table, const char* key, Type* value) {
     return ok;
 }
 
-Type* symbol_table_get(SymbolTable* table, const char* key) {
+Symbol* symbol_table_get(SymbolTable* table, const char* key) {
     if (!table || !key) return NULL;
 
     void *v = hashmap_get(
@@ -84,7 +85,7 @@ Type* symbol_table_get(SymbolTable* table, const char* key) {
         (size_t (*)(void*)) table->hash,
         (int (*)(void*, void*)) table->cmp
     );
-    return (Type*)v;
+    return (Symbol*)v;
 }
 
 bool symbol_table_remove(SymbolTable* table, const char* key) {
@@ -118,7 +119,7 @@ size_t symbol_table_size(SymbolTable* table) {
 
 void symbol_table_foreach(
     SymbolTable* table,
-    void (*func)(char* key, Type* value)
+    void (*func)(char* key, Symbol* value)
 ) {
     if (!table || !func) return;
 
@@ -129,7 +130,7 @@ void symbol_table_foreach(
         DynArray *bucket = &map->buckets[i];
         for (size_t j = 0; j < bucket->count; ++j) {
             KeyValue *kv = (KeyValue*)dynarray_get(bucket, j);
-            func((char*)kv->key, (Type*)kv->value);
+            func((char*)kv->key, (Symbol*)kv->value);
         }
     }
 }

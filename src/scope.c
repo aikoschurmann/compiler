@@ -4,6 +4,12 @@
 #include <string.h>
 
 
+static void free_symbol(Symbol *sym) {
+    if (!sym) return;
+    if (sym->sem_type) type_free(sym->sem_type);
+    free(sym); /* sym->name not freed (owned by AST or duplicated elsewhere) */
+}
+
 static size_t str_hash(void *key) {
     const unsigned char *s = (const unsigned char *)key;
     if (!s) return 0;
@@ -54,16 +60,16 @@ static void hashmap_print_entries(HashMap *map, int indent) {
         for (size_t j = 0; j < bucket->count; ++j) {
             KeyValue *kv = (KeyValue*)dynarray_get(bucket, j);
             char *key = (char*)kv->key;
-            Type *val = (Type*)kv->value;
+            Symbol *sym = (Symbol*)kv->value;
 
             print_indent(indent);
             if (key) printf("%s : ", key);
             else printf("<anon> : ");
 
-            if (val) {
-                type_print(val);
+            if (sym && sym->sem_type) {
+                type_print(sym->sem_type);
             } else {
-                printf("<NULL-type>");
+                printf("<NULL-symbol>");
             }
             printf("\n");
         }
@@ -102,10 +108,12 @@ void scope_print(Scope *scope) {
 void free_scope_maps(Scope *s) {
     if (!s) return;
     if (s->functions) {
+        s->functions->free_value = (void(*)(Symbol*))free_symbol;
         symbol_table_destroy(s->functions);
         s->functions = NULL;
     }
     if (s->variables) {
+        s->variables->free_value = (void(*)(Symbol*))free_symbol;
         symbol_table_destroy(s->variables);
         s->variables = NULL;
     }
@@ -136,22 +144,26 @@ int symbol_table_construction(Scope *global_scope, AstProgram *program) {
                     fprintf(stderr, "symbol_table_construction: function with no name at index %zu\n", i);
                     return -1;
                 }
-            
-                Type *existing = symbol_table_get(global_scope->functions, name);
-                if (existing) {
+
+                if (symbol_table_get(global_scope->functions, name)) {
                     fprintf(stderr, "symbol_table_construction: duplicate function '%s'\n", name);
                     return -1;
                 }
-            
+
                 Type *ftype = astfunction_to_type(fd);
                 if (!ftype) {
                     fprintf(stderr, "symbol_table_construction: failed to create type for function '%s'\n", name);
                     return -1;
                 }
-            
-                if (!symbol_table_put(global_scope->functions, name, ftype)) {
+                Symbol *sym = xmalloc(sizeof(*sym));
+                sym->name = (char*)name; /* not owning */
+                sym->sem_type = ftype;
+                sym->is_const_expr = 0;
+
+                if (!symbol_table_put(global_scope->functions, name, sym)) {
                     fprintf(stderr, "symbol_table_construction: symbol_table_put failed for '%s'\n", name);
                     type_free(ftype);
+                    free(sym);
                     return -1;
                 }
                 break;
@@ -165,8 +177,7 @@ int symbol_table_construction(Scope *global_scope, AstProgram *program) {
                     return -1;
                 }
 
-                Type *existing = symbol_table_get(global_scope->variables, name);
-                if (existing) {
+                if (symbol_table_get(global_scope->variables, name)) {
                     fprintf(stderr, "symbol_table_construction: duplicate variable '%s'\n", name);
                     return -1;
                 }
@@ -176,14 +187,18 @@ int symbol_table_construction(Scope *global_scope, AstProgram *program) {
                     fprintf(stderr, "symbol_table_construction: failed to create type for variable '%s'\n", name);
                     return -1;
                 }
+                Symbol *sym = xmalloc(sizeof(*sym));
+                sym->name = (char*)name; /* not owning */
+                sym->sem_type = vtype;
+                sym->is_const_expr = 0;
 
-                if (!symbol_table_put(global_scope->variables, name, vtype)) {
+                if (!symbol_table_put(global_scope->variables, name, sym)) {
                     fprintf(stderr, "symbol_table_construction: symbol_table_put failed for '%s'\n", name);
                     type_free(vtype);
+                    free(sym);
                     return -1;
                 }
                 break;
-
             }
 
             default:
