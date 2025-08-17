@@ -1,0 +1,82 @@
+/* tokens.def
+ * X(NAME, printable_form, regex_pattern)
+ * 
+ * - NAME: enum name for the token type
+ * - literal-comparison: used to match the token in lexer
+ * - regex_pattern: regex for literals/idents, NULL if matched by spelling
+ */
+
+// Keywords
+X(TOK_FN,           "fn",        NULL)
+X(TOK_IF,           "if",        NULL)
+X(TOK_ELSE,         "else",      NULL)
+X(TOK_WHILE,        "while",     NULL)
+X(TOK_FOR,          "for",       NULL)
+X(TOK_RETURN,       "return",    NULL)
+X(TOK_BREAK,        "break",     NULL)
+X(TOK_CONTINUE,     "continue",  NULL)
+X(TOK_CONST,        "const",     NULL)
+
+// Types
+X(TOK_I32,          "i32",       NULL)
+X(TOK_I64,          "i64",       NULL)
+X(TOK_BOOL,         "bool",      NULL)
+X(TOK_STRING_TYPE,  "str",       NULL)
+X(TOK_F32,          "f32",       NULL)
+X(TOK_F64,          "f64",       NULL)
+
+// boolean literals
+X(TOK_TRUE,         "true",      NULL)
+X(TOK_FALSE,        "false",     NULL)
+
+/* multi-char operators */
+X(TOK_PLUSPLUS,     "++",        NULL)
+X(TOK_MINUSMINUS,   "--",        NULL)
+X(TOK_PLUS_EQ,      "+=",        NULL)
+X(TOK_MINUS_EQ,     "-=",        NULL)
+X(TOK_STAR_EQ,      "*=",        NULL)
+X(TOK_SLASH_EQ,     "/=",        NULL)
+X(TOK_PERCENT_EQ,   "%=",        NULL)
+X(TOK_EQ_EQ,        "==",        NULL)
+X(TOK_BANG_EQ,      "!=",        NULL)
+X(TOK_LT_EQ,        "<=",        NULL)
+X(TOK_GT_EQ,        ">=",        NULL)
+X(TOK_AND_AND,      "&&",        NULL)
+X(TOK_OR_OR,        "||",        NULL)
+X(TOK_ARROW,        "->",        NULL)
+
+
+/* single-char operators */
+X(TOK_ASSIGN,       "=",         NULL)
+X(TOK_PLUS,         "+",         NULL)
+X(TOK_MINUS,        "-",         NULL)
+X(TOK_STAR,         "*",         NULL)
+X(TOK_SLASH,        "/",         NULL)
+X(TOK_PERCENT,      "%",         NULL)
+X(TOK_BANG,         "!",         NULL)
+X(TOK_AMP,          "&",         NULL)
+X(TOK_LT,           "<",         NULL)
+X(TOK_GT,           ">",         NULL)
+X(TOK_DOT,          ".",         NULL)
+
+/* punctuation */
+X(TOK_LPAREN,       "(",         NULL)
+X(TOK_RPAREN,       ")",         NULL)
+X(TOK_L_BRACE,      "{",         NULL)
+X(TOK_R_BRACE,      "}",         NULL)
+X(TOK_L_SQB,        "[",         NULL)
+X(TOK_R_SQB,        "]",         NULL)
+X(TOK_COMMA,        ",",         NULL)
+X(TOK_SEMICOLON,    ";",         NULL)
+X(TOK_COLON,        ":",         NULL)
+
+/* literals / identifiers */
+X(TOK_FLOAT,        NULL,           "^[0-9]+\\.[0-9]+")
+X(TOK_INTEGER,      NULL,           "^[0-9]+")
+X(TOK_STRING,       NULL,           "^\"([^\"\\\\]|\\\\.)*\"")
+X(TOK_IDENTIFIER,   NULL,           "^[a-zA-Z_][a-zA-Z0-9_]*")
+
+/* misc, these get excluded from the regex compilation */
+X(TOK_COMMENT,      NULL,       "") // no regex because comments are handled separately
+X(TOK_EOF,          NULL,       "") // end of file, no regex needed
+X(TOK_UNKNOWN,      NULL,       "") // for unrecognized tokens

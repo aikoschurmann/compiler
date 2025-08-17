@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "*.def": "c",
+        "stddef.h": "c",
+        "parser.h": "c",
+        "string.h": "c",
+        "ast_dyn_node_array.h": "c",
+        "ast.h": "c",
+        "dynamic_array.h": "c"
+    },
+    "C_Cpp.default.compilerPath": "/usr/bin/gcc"
+}
