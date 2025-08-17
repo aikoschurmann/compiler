@@ -83,6 +83,54 @@ Run:
 ```
 Outputs an AST tree dump (if enabled) or exits silently on success.
 
+```yaml
+=== AST ===
+Program:
+  Function: add
+    ReturnType:
+      Base-type: i32
+    Parameters:
+      Param: a
+        Base-type: i32
+      Param: b
+        Base-type: i32
+    Body:
+      Block:
+        ReturnStatement:
+          BinaryOp: +
+            Variable: a
+            Variable: b
+  Function: main
+    Parameters: (none)
+    Body:
+      Block:
+        Declaration:
+          Variable: x
+            Type:
+              Base-type: i32
+            Initializer:
+              Literal: 0
+        ForLoop:
+          Init:
+            Declaration:
+              Variable: i
+                Type:
+                  Base-type: i32
+                Initializer:
+                  Literal: 0
+          Condition:
+            BinaryOp: <
+              Variable: i
+              Literal: 10
+          Post:
+            Assignment: =
+              Variable: i
+              BinaryOp: +
+                Variable: i
+                Literal: 1
+```
+
+
 ## Extending
 Ideas:
 - Semantic pass (type table, scope chain, symbol resolution)
