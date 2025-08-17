@@ -180,3 +180,6 @@ void hashmap_foreach(
     }
 }
 
+size_t hashmap_size(HashMap* map) {
+    return map ? map->size : 0;
+}

@@ -50,8 +50,11 @@ struct Type {
 
 /* === Scope === */
 
-typedef struct {
-    HashMap *identifier;
+
+
+typedef struct Scope {
+    HashMap *variables;
+    HashMap *functions;
     struct Scope *parent;
 } Scope;
 
@@ -64,6 +67,8 @@ Type *type_make_function(Type *return_type, Type **params, size_t param_count, i
 
 
 Type *asttype_to_type(AstType *ast_node_type);
+Type *astfunction_to_type(AstFunctionDeclaration *ast_fn);
+
 
 
 // type comparison
@@ -72,6 +77,13 @@ int type_compatible(Type *a, Type *b);
 
 // debugging / printing
 void type_print(Type *t);
+char *type_to_string(Type *t);
 
 // memory management
 void type_free(Type *t);
+
+int symbol_table_construction(Scope *global_scope, AstProgram *program);
+
+void scope_print(Scope *scope);
+
+void free_scope_maps(Scope *s);
