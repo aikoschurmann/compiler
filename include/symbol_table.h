@@ -3,7 +3,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "hash_map.h"
-#include "semantics.h"
+#include "type.h"
+
 
 /* SymbolTable: a typed wrapper around the generic HashMap (string -> Type*) */
 typedef struct {

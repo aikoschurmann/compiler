@@ -1,8 +1,3 @@
-/* driver.c
-   Responsible for: load -> lex -> parse -> (semantic hooks) -> cleanup + timing.
-   Depends on: file.h, lexer.h, parser.h, ast_parse_statements.h, semantics.h
-*/
-
 #include "driver.h"
 
 #include <stdio.h>
@@ -14,7 +9,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "ast_parse_statements.h"
-#include "semantics.h"
+#include "scope.h"
 
 /* forward to semantic helpers implemented elsewhere (your code) */
 extern int symbol_table_construction(Scope *global_scope, AstProgram *program);
@@ -49,7 +44,7 @@ static void print_timings_if_requested(const CompilerOptions *opts,
                                        const Timer *t_total) {
     if (!opts->show_time) return;
     fprintf(stderr,
-            "Timings (ms): load=%.3f lex=%.3f parse=%.3f sem=%.3f total=%.3f\n",
+            "Timings (ms): load=%.3f lex=%.3f parse=%.3f symbol-table(global)=%.3f total=%.3f\n",
             t_load->ms, t_lex->ms, t_parse->ms, t_sem->ms, t_total->ms);
 }
 
