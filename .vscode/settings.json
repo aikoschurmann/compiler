@@ -8,7 +8,8 @@
         "ast.h": "c",
         "dynamic_array.h": "c",
         "util.h": "c",
-        "type.h": "c"
+        "type.h": "c",
+        "semantic_analysis.h": "c"
     },
     "C_Cpp.default.compilerPath": "/usr/bin/gcc"
 }

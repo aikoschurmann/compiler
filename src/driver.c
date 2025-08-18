@@ -10,6 +10,7 @@
 #include "parser.h"
 #include "ast_parse_statements.h"
 #include "scope.h"
+#include "semantic_analysis.h"
 
 
 typedef struct {
@@ -39,7 +40,7 @@ static void print_timings_if_requested(const CompilerOptions *opts,
                                        const Timer *t_total) {
     if (!opts->show_time) return;
     fprintf(stderr,
-            "Timings (ms): load=%.3f lex=%.3f parse=%.3f symbol-table(global)=%.3f total=%.3f\n",
+            "Timings (ms): load=%.3f lex=%.3f parse=%.3f func-types=%.3f total=%.3f\n",
             t_load->ms, t_lex->ms, t_parse->ms, t_sem->ms, t_total->ms);
 }
 
@@ -143,7 +144,7 @@ int run_compiler_once(const CompilerOptions *opts) {
     {
         Scope global_scope = {0};
 
-        if (symbol_table_construction(&global_scope, &program->data.program) != 0) {
+        if (scope_fill_function_declarations(&global_scope, &program->data.program) != 0) {
             fprintf(stderr, "error: symbol table construction failed\n");
             free_scope_maps(&global_scope); /* optional; safe if implemented */
             goto finish;
