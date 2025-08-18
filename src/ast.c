@@ -6,6 +6,10 @@
 #include <string.h>
 #include "ast_dyn_node_array.h"
 
+/* Forward declarations */
+static void format_type_compact(AstNode *type_node, char *buffer, size_t buffer_size);
+static void format_expression_compact(AstNode *expr_node, char *buffer, size_t buffer_size);
+
 
 AstNode *ast_create_node(AstNodeType type)
 {
@@ -38,16 +42,56 @@ static void format_type_compact(AstNode *type_node, char *buffer, size_t buffer_
     
     buffer[0] = '\0';
     
-    // Add const qualifier
-    if (type_node->data.ast_type.base_is_const) {
-        strncat(buffer, "const ", buffer_size - strlen(buffer) - 1);
-    }
-    
-    // Handle function types
-    if (type_node->data.ast_type.is_function) {
-        strncat(buffer, "(", buffer_size - strlen(buffer) - 1);
+    // Handle parenthesized/grouped types (inner type stored in return_type, no base_type or is_function)
+    if (!type_node->data.ast_type.is_function && !type_node->data.ast_type.base_type && type_node->data.ast_type.return_type) {
+        // Add const qualifier for grouped types
+        if (type_node->data.ast_type.base_is_const) {
+            strncat(buffer, "const ", buffer_size - strlen(buffer) - 1);
+        }
         
-        // Add parameter types
+        // This is a parenthesized type - format the inner type with parentheses
+        strncat(buffer, "(", buffer_size - strlen(buffer) - 1);
+        char inner_buffer[256];
+        format_type_compact(type_node->data.ast_type.return_type, inner_buffer, sizeof(inner_buffer));
+        strncat(buffer, inner_buffer, buffer_size - strlen(buffer) - 1);
+        strncat(buffer, ")", buffer_size - strlen(buffer) - 1);
+        
+        // Add pre-stars
+        for (size_t i = 0; i < type_node->data.ast_type.pre_stars; ++i) {
+            strncat(buffer, "*", buffer_size - strlen(buffer) - 1);
+        }
+        
+        // Add array dimensions
+        if (type_node->data.ast_type.sizes) {
+            size_t n = astnode_array_count(type_node->data.ast_type.sizes);
+            for (size_t i = 0; i < n; ++i) {
+                AstNode *dim = astnode_array_get(type_node->data.ast_type.sizes, i);
+                strncat(buffer, "[", buffer_size - strlen(buffer) - 1);
+                if (dim) {
+                    // Format the dimension expression into a string
+                    char dim_buffer[128];
+                    format_expression_compact(dim, dim_buffer, sizeof(dim_buffer));
+                    strncat(buffer, dim_buffer, buffer_size - strlen(buffer) - 1);
+                }
+                strncat(buffer, "]", buffer_size - strlen(buffer) - 1);
+            }
+        }
+        
+        // Add post-stars
+        for (size_t i = 0; i < type_node->data.ast_type.post_stars; ++i) {
+            strncat(buffer, "*", buffer_size - strlen(buffer) - 1);
+        }
+    }
+    // Handle function types
+    else if (type_node->data.ast_type.is_function) {
+        // For function types, put const before the parameter list
+        if (type_node->data.ast_type.base_is_const) {
+            strncat(buffer, "const ", buffer_size - strlen(buffer) - 1);
+        }
+        
+        strncat(buffer, "fn(", buffer_size - strlen(buffer) - 1);
+        
+        // Add parameter types (without const, since const applies to the function)
         if (type_node->data.ast_type.param_types) {
             size_t param_count = astnode_array_count(type_node->data.ast_type.param_types);
             for (size_t i = 0; i < param_count; ++i) {
@@ -86,8 +130,11 @@ static void format_type_compact(AstNode *type_node, char *buffer, size_t buffer_
             for (size_t i = 0; i < n; ++i) {
                 AstNode *dim = astnode_array_get(type_node->data.ast_type.sizes, i);
                 strncat(buffer, "[", buffer_size - strlen(buffer) - 1);
-                if (dim && dim->node_type == AST_LITERAL && dim->data.literal.value) {
-                    strncat(buffer, dim->data.literal.value, buffer_size - strlen(buffer) - 1);
+                if (dim) {
+                    // Format the dimension expression into a string
+                    char dim_buffer[128];
+                    format_expression_compact(dim, dim_buffer, sizeof(dim_buffer));
+                    strncat(buffer, dim_buffer, buffer_size - strlen(buffer) - 1);
                 }
                 strncat(buffer, "]", buffer_size - strlen(buffer) - 1);
             }
@@ -99,6 +146,11 @@ static void format_type_compact(AstNode *type_node, char *buffer, size_t buffer_
         }
     } else {
         // Regular type
+        // Add const qualifier for regular types
+        if (type_node->data.ast_type.base_is_const) {
+            strncat(buffer, "const ", buffer_size - strlen(buffer) - 1);
+        }
+        
         const char *base = type_node->data.ast_type.base_type ? type_node->data.ast_type.base_type : "?";
         strncat(buffer, base, buffer_size - strlen(buffer) - 1);
         
@@ -113,8 +165,11 @@ static void format_type_compact(AstNode *type_node, char *buffer, size_t buffer_
             for (size_t i = 0; i < n; ++i) {
                 AstNode *dim = astnode_array_get(type_node->data.ast_type.sizes, i);
                 strncat(buffer, "[", buffer_size - strlen(buffer) - 1);
-                if (dim && dim->node_type == AST_LITERAL && dim->data.literal.value) {
-                    strncat(buffer, dim->data.literal.value, buffer_size - strlen(buffer) - 1);
+                if (dim) {
+                    // Format the dimension expression into a string
+                    char dim_buffer[128];
+                    format_expression_compact(dim, dim_buffer, sizeof(dim_buffer));
+                    strncat(buffer, dim_buffer, buffer_size - strlen(buffer) - 1);
                 }
                 strncat(buffer, "]", buffer_size - strlen(buffer) - 1);
             }
@@ -124,6 +179,81 @@ static void format_type_compact(AstNode *type_node, char *buffer, size_t buffer_
         for (size_t i = 0; i < type_node->data.ast_type.post_stars; ++i) {
             strncat(buffer, "*", buffer_size - strlen(buffer) - 1);
         }
+    }
+}
+
+/* Helper: format an expression compactly into a string buffer */
+static void format_expression_compact(AstNode *expr_node, char *buffer, size_t buffer_size) {
+    if (!expr_node || !buffer || buffer_size == 0) {
+        if (buffer && buffer_size > 0) buffer[0] = '\0';
+        return;
+    }
+    
+    buffer[0] = '\0';
+    
+    switch (expr_node->node_type) {
+        case AST_LITERAL:
+            if (expr_node->data.literal.value) {
+                strncat(buffer, expr_node->data.literal.value, buffer_size - strlen(buffer) - 1);
+            } else {
+                strncat(buffer, "?", buffer_size - strlen(buffer) - 1);
+            }
+            break;
+            
+        case AST_IDENTIFIER:
+            if (expr_node->data.identifier.identifier) {
+                strncat(buffer, expr_node->data.identifier.identifier, buffer_size - strlen(buffer) - 1);
+            } else {
+                strncat(buffer, "?", buffer_size - strlen(buffer) - 1);
+            }
+            break;
+            
+        case AST_BINARY_EXPR: {
+            char left_buf[64] = {0};
+            char right_buf[64] = {0};
+            
+            if (expr_node->data.binary_expr.left) {
+                format_expression_compact(expr_node->data.binary_expr.left, left_buf, sizeof(left_buf));
+            }
+            if (expr_node->data.binary_expr.right) {
+                format_expression_compact(expr_node->data.binary_expr.right, right_buf, sizeof(right_buf));
+            }
+            
+            const char *op_str = "?";
+            switch (expr_node->data.binary_expr.op) {
+                case OP_ADD: op_str = " + "; break;
+                case OP_SUB: op_str = " - "; break;
+                case OP_MUL: op_str = " * "; break;
+                case OP_DIV: op_str = " / "; break;
+                case OP_MOD: op_str = " % "; break;
+                default: break;
+            }
+            
+            snprintf(buffer, buffer_size, "%s%s%s", left_buf, op_str, right_buf);
+            break;
+        }
+        
+        case AST_UNARY_EXPR: {
+            char expr_buf[64] = {0};
+            if (expr_node->data.unary_expr.expr) {
+                format_expression_compact(expr_node->data.unary_expr.expr, expr_buf, sizeof(expr_buf));
+            }
+            
+            const char *op_str = "?";
+            switch (expr_node->data.unary_expr.op) {
+                case OP_ADD: op_str = "+"; break;  // unary plus
+                case OP_SUB: op_str = "-"; break;  // unary minus
+                case OP_NOT: op_str = "!"; break;
+                default: break;
+            }
+            
+            snprintf(buffer, buffer_size, "%s%s", op_str, expr_buf);
+            break;
+        }
+        
+        default:
+            strncat(buffer, "?", buffer_size - strlen(buffer) - 1);
+            break;
     }
 }
 
@@ -478,9 +608,7 @@ void print_ast(AstNode *node, int indent) {
             print_indent(indent + 1);
             printf("Variable: %s\n", node->data.variable_declaration.name ? node->data.variable_declaration.name : "(anon)");
             if (node->data.variable_declaration.type) {
-                print_indent(indent + 2);
-                printf("Type:\n");
-                print_ast(node->data.variable_declaration.type, indent + 3);
+                print_ast(node->data.variable_declaration.type, indent + 2);
             }
             if (node->data.variable_declaration.initializer) {
                 print_indent(indent + 2);
@@ -519,9 +647,7 @@ void print_ast(AstNode *node, int indent) {
             print_indent(indent);
             printf("Param: %s\n", node->data.param.name ? node->data.param.name : "(anon)");
             if (node->data.param.type) {
-                print_indent(indent + 1);
-                printf("Type:\n");
-                print_ast(node->data.param.type, indent + 2);
+                print_ast(node->data.param.type, indent + 1);
             }
             break;
         }
@@ -721,16 +847,99 @@ void print_ast(AstNode *node, int indent) {
 
         case AST_TYPE: {
             print_indent(indent);
-
-            /* Use the compact formatter for cleaner output */
-            char type_buffer[512];
-            format_type_compact(node, type_buffer, sizeof(type_buffer));
             
             if (node->data.ast_type.is_function) {
-                printf("Function-type: %s\n", type_buffer);
+                printf("Function-type:\n");
+                
+                // Show const qualifier
+                if (node->data.ast_type.base_is_const) {
+                    print_indent(indent + 1);
+                    printf("Const: true\n");
+                }
+                
+                // Show parameter types
+                if (node->data.ast_type.param_types) {
+                    print_indent(indent + 1);
+                    printf("Parameters:\n");
+                    size_t param_count = astnode_array_count(node->data.ast_type.param_types);
+                    for (size_t i = 0; i < param_count; ++i) {
+                        AstNode *param_type = astnode_array_get(node->data.ast_type.param_types, i);
+                        if (param_type) {
+                            print_ast(param_type, indent + 2);
+                        }
+                    }
+                } else {
+                    print_indent(indent + 1);
+                    printf("Parameters: (none)\n");
+                }
+                
+                // Show return type
+                if (node->data.ast_type.return_type) {
+                    print_indent(indent + 1);
+                    printf("ReturnType:\n");
+                    print_ast(node->data.ast_type.return_type, indent + 2);
+                }
+                
+            } else if (!node->data.ast_type.base_type && node->data.ast_type.return_type) {
+                // Parenthesized/grouped type
+                printf("Grouped-type:\n");
+                
+                // Show const qualifier
+                if (node->data.ast_type.base_is_const) {
+                    print_indent(indent + 1);
+                    printf("Const: true\n");
+                }
+                
+                // Show inner type
+                print_indent(indent + 1);
+                printf("InnerType:\n");
+                print_ast(node->data.ast_type.return_type, indent + 2);
+                
             } else {
-                printf("Type: %s\n", type_buffer);
+                // Regular base type
+                printf("Type:\n");
+                
+                // Show const qualifier
+                if (node->data.ast_type.base_is_const) {
+                    print_indent(indent + 1);
+                    printf("Const: true\n");
+                }
+                
+                // Show base type
+                print_indent(indent + 1);
+                printf("BaseType: %s\n", node->data.ast_type.base_type ? node->data.ast_type.base_type : "?");
             }
+            
+            // Show pre-stars
+            if (node->data.ast_type.pre_stars > 0) {
+                print_indent(indent + 1);
+                printf("PreStars: %zu\n", node->data.ast_type.pre_stars);
+            }
+            
+            // Show array dimensions with their expressions
+            if (node->data.ast_type.sizes && astnode_array_count(node->data.ast_type.sizes) > 0) {
+                print_indent(indent + 1);
+                printf("ArrayDimensions:\n");
+                size_t n = astnode_array_count(node->data.ast_type.sizes);
+                for (size_t i = 0; i < n; ++i) {
+                    AstNode *dim = astnode_array_get(node->data.ast_type.sizes, i);
+                    print_indent(indent + 2);
+                    printf("Dimension[%zu]:\n", i);
+                    if (dim) {
+                        print_ast(dim, indent + 3);
+                    } else {
+                        print_indent(indent + 3);
+                        printf("(empty)\n");
+                    }
+                }
+            }
+            
+            // Show post-stars
+            if (node->data.ast_type.post_stars > 0) {
+                print_indent(indent + 1);
+                printf("PostStars: %zu\n", node->data.ast_type.post_stars);
+            }
+            
             break;
         }
         case AST_INITIALIZER_LIST: {

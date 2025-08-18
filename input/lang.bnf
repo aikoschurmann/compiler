@@ -110,12 +110,23 @@
 
 <ArgList> ::= (<Expression> | <InitializerList>) { COMMA (<Expression> | <InitializerList>) }
 
-<Type>     ::= [ CONST ] (<BaseType> | <FunctionType>) [<PostfixType>]
-<FunctionType> ::=  LPAREN <Type> { COMMA <Type> } RPAREN [ ARROW <Type> ]
 
-<PostfixType> ::= {STAR} {L_SQB [<ConstExpr>] R_SQB} {STAR} 
-                 
-<BaseType> ::= I32 | I64 | BOOL | F32 | F64
+<Type>        ::= [ CONST ] <TypeAtom> { <TypeSuffix> }
+
+<TypeAtom>    ::= BaseType
+                | LPAREN <Type> RPAREN
+                | FunctionType
+
+# function type is an atom so you can parenthesize it when needed
+FunctionType  ::= FN LPAREN [ <TypeList> ] RPAREN [ ARROW <Type>]
+
+<TypeList>    ::= <Type> { COMMA <Type> }
+
+# suffixes apply left-to-right to the immediately preceding type
+<TypeSuffix>  ::= STAR
+                | L_SQB [ <ConstExpr> ] R_SQB
+
+BaseType      ::= I32 | I64 | BOOL | F32 | F64 | IDENTIFIER
 
 
 <ConstExpr>    ::= <ConstAdd>

@@ -44,16 +44,19 @@ int parse_argument_list(Parser *p, AstNode *call, ParseError *err);
 /* ---------------------------
    Types
    ---------------------------
-   <Type>     ::= <BaseType> [<PostfixType>]
-
-   <PostfixType> ::= {STAR} {L_SQB [<ConstExpr>] R_SQB} {STAR} 
-   <BaseType> ::= I32 | I64 | BOOL | CHAR | F32 | F64
-   <FunctionType> ::= LPAREN [ <ParamTypeList> ] RPAREN [ ARROW <Type> ]
-   <ParamTypeList> ::= <Type> { COMMA <Type> }
+   <Type>        ::= [ CONST ] <TypeAtom> { <TypeSuffix> }
+   <TypeAtom>    ::= BaseType | LPAREN <Type> RPAREN | FunctionType
+   <TypeSuffix>  ::= STAR | L_SQB [ <ConstExpr> ] R_SQB
+   FunctionType  ::= FN LPAREN [ <TypeList> ] RPAREN [ ARROW <Type>]
+   <TypeList>    ::= <Type> { COMMA <Type> }
+   BaseType      ::= I32 | I64 | BOOL | F32 | F64 | IDENTIFIER
 */
 AstNode *parse_type(Parser *p, ParseError *err);
+int parse_type_atom(Parser *p, AstNode *type_node, ParseError *err);
+int parse_function_type_atom(Parser *p, AstNode *type_node, ParseError *err);
 int parse_function_type_inline(Parser *p, AstNode *type_node, ParseError *err);
-int parse_postfix_type(Parser *p, AstNode *type_node, ParseError* err);
+int parse_type_suffix(Parser *p, AstNode *type_node, ParseError *err);
+int parse_postfix_type(Parser *p, AstNode *type_node, ParseError *err);
 
 /* ---------------------------
    Initializers

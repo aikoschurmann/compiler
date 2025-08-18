@@ -251,7 +251,7 @@ AstNode *parse_variable_declaration(Parser *p, ParseError *err)
     return var_decl;
 }
 
-// <Type> ::= [ CONST ] (<BaseType> [<PostfixType>] | <FunctionType>)
+// <Type>     ::= [ CONST ] (<BaseType> | <FunctionType>) [<PostfixType>]
 AstNode *parse_type(Parser *p, ParseError *err) {
     AstNode *type_node = ast_create_node(AST_TYPE);
     if (!type_node) {
@@ -281,12 +281,34 @@ AstNode *parse_type(Parser *p, ParseError *err) {
         token = current_token(p);
     }
 
-    /* Check for function type: LPAREN */
-    if (token && token->type == TOK_LPAREN) {
+    /* Check for function type: FN LPAREN or parenthesized type: LPAREN */
+    if (token && token->type == TOK_FN) {
         /* Parse function type but don't return yet - need to check for postfix */
         if (!parse_function_type_inline(p, type_node, err)) {
             return NULL;
         }
+    } else if (token && token->type == TOK_LPAREN) {
+        /* This could be a parenthesized type: (Type) */
+        /* We need to parse it as a grouped type to preserve precedence */
+        consume(p, TOK_LPAREN);
+        
+        // Parse the inner type
+        AstNode *inner_type = parse_type(p, err);
+        if (!inner_type) {
+            return NULL;
+        }
+        
+        // Consume closing paren
+        if (!consume(p, TOK_RPAREN)) {
+            ast_node_free(inner_type);
+            if (err) create_parse_error(err, "expected ')' after parenthesized type", p);
+            return NULL;
+        }
+        
+        // Store the inner type in return_type to indicate this is a grouped type
+        type_node->data.ast_type.is_function = 0;
+        type_node->data.ast_type.base_type = NULL;
+        type_node->data.ast_type.return_type = inner_type;
     } else {
         /* Parse base type */
         if (!token || token->type < TOK_I32 || token->type > TOK_F64) {
@@ -319,53 +341,54 @@ AstNode *parse_type(Parser *p, ParseError *err) {
 int parse_postfix_type(Parser *p, AstNode *type_node, ParseError* err) {
     Token *token = current_token(p);
 
-    /* pre_stars */
-    while (token && token->type == TOK_STAR) {
-        type_node->data.ast_type.pre_stars++;
-        consume(p, token->type);
-        token = current_token(p);
-    }
-
-    ///* indexes */
-    token = current_token(p);
-    while (token && token->type == TOK_L_SQB) {
-        consume(p, TOK_L_SQB);
-
-        token = current_token(p);
-        if (!token) { if (err) create_parse_error(err, "unexpected end in array index", p); return 1; }
-
-        if (token->type != TOK_R_SQB) {
-            AstNode *const_expr = parse_expression(p, err);
-            if (!const_expr) { return 1; }
-            // type_size_push(type_node, const_expr);
-            if(astnode_array_push(type_node->data.ast_type.sizes, const_expr) != 0){
-                if (err) create_parse_error(err, "out of memory pushing declaration", p);
-                ast_node_free(const_expr);
-                return 1;
+    /* Process suffixes left-to-right to preserve precedence */
+    while (token && (token->type == TOK_STAR || token->type == TOK_L_SQB)) {
+        if (token->type == TOK_STAR) {
+            /* Check if we've seen any arrays yet */
+            if (astnode_array_count(type_node->data.ast_type.sizes) == 0) {
+                /* No arrays seen yet, this is a pre-star */
+                type_node->data.ast_type.pre_stars++;
+            } else {
+                /* Arrays already seen, this is a post-star */
+                type_node->data.ast_type.post_stars++;
             }
+            consume(p, TOK_STAR);
+        } else if (token->type == TOK_L_SQB) {
+            /* Parse array dimension */
+            consume(p, TOK_L_SQB);
 
             token = current_token(p);
-            if (!token || token->type != TOK_R_SQB) {
-                if (err) fail_with(p, type_node, err, "expected ']' after array size");
-                return 1;
+            if (!token) { 
+                if (err) create_parse_error(err, "unexpected end in array index", p); 
+                return 1; 
             }
-            consume(p, TOK_R_SQB);
-        } else {
-            //printf(type_node->data.type.ndim_count);
-            if(astnode_array_push(type_node->data.ast_type.sizes, NULL) != 0){
-                if (err) create_parse_error(err, "out of memory pushing declaration", p);
-                return 1;
-            }
-            consume(p, TOK_R_SQB);
-        }
-        token = current_token(p);
-    }
 
-    /* post_stars */
-    token = current_token(p);
-    while (token && token->type == TOK_STAR) {
-        type_node->data.ast_type.post_stars++;
-        consume(p, token->type);
+            if (token->type != TOK_R_SQB) {
+                AstNode *const_expr = parse_expression(p, err);
+                if (!const_expr) { return 1; }
+                
+                if(astnode_array_push(type_node->data.ast_type.sizes, const_expr) != 0){
+                    if (err) create_parse_error(err, "out of memory pushing declaration", p);
+                    ast_node_free(const_expr);
+                    return 1;
+                }
+
+                token = current_token(p);
+                if (!token || token->type != TOK_R_SQB) {
+                    if (err) fail_with(p, type_node, err, "expected ']' after array size");
+                    return 1;
+                }
+                consume(p, TOK_R_SQB);
+            } else {
+                /* Empty array size [] */
+                if(astnode_array_push(type_node->data.ast_type.sizes, NULL) != 0){
+                    if (err) create_parse_error(err, "out of memory pushing declaration", p);
+                    return 1;
+                }
+                consume(p, TOK_R_SQB);
+            }
+        }
+        
         token = current_token(p);
     }
 
@@ -378,6 +401,12 @@ int parse_postfix_type(Parser *p, AstNode *type_node, ParseError* err) {
 int parse_function_type_inline(Parser *p, AstNode *type_node, ParseError *err) {
     if (!type_node) {
         if (err) create_parse_error(err, "null type_node in parse_function_type_inline", p);
+        return 0;
+    }
+
+    // Consume FN token
+    if (!consume(p, TOK_FN)) {
+        if (err) create_parse_error(err, "expected 'fn' at start of function type", p);
         return 0;
     }
 
