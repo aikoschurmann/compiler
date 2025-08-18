@@ -130,9 +130,9 @@ int symbol_table_construction(Scope *global_scope, AstProgram *program) {
         return -1;
     }
 
-    size_t n = astnode_array_count(&program->decls);
+    size_t n = astnode_array_count(program->decls);
     for (size_t i = 0; i < n; ++i) {
-        AstNode *decl = astnode_array_get(&program->decls, i);
+        AstNode *decl = astnode_array_get(program->decls, i);
         if (!decl) continue;
         switch (decl->node_type)
         {

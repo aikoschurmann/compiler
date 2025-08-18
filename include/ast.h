@@ -70,7 +70,7 @@ typedef struct {
 typedef struct AstNode AstNode;
 
 typedef struct {
-    AstNodeArray decls;
+    AstNodeArray *decls;
 } AstProgram;
 
 typedef struct {
@@ -82,7 +82,7 @@ typedef struct {
 typedef struct {
     AstNode *return_type;    /* AstNode of AST_TYPE */
     char *name;
-    AstNodeArray params;     /* AstParam nodes */
+    AstNodeArray *params;     /* AstParam nodes */
     AstNode *body;           /* AstBlock */
 } AstFunctionDeclaration;
 
@@ -92,7 +92,7 @@ typedef struct {
 } AstParam;
 
 typedef struct {
-    AstNodeArray statements;
+    AstNodeArray *statements;
 } AstBlock;
 
 typedef struct {
@@ -131,20 +131,23 @@ typedef struct { AstNode *left; AstNode *right; OpKind op; } AstBinaryExpr;
 typedef struct { OpKind op; AstNode *expr; } AstUnaryExpr;
 typedef struct { AstNode *expr; OpKind op; } AstPostfixExpr;
 typedef struct { AstNode *lvalue; AstNode *rvalue; OpKind op; } AstAssignmentExpr;
-typedef struct { AstNode *callee; AstNodeArray args; } AstCallExpr;
+typedef struct { AstNode *callee; AstNodeArray *args; } AstCallExpr;
 typedef struct { AstNode *target; AstNode *index; } AstSubscriptExpr;
 
 /* AST representation of a type (syntactic): e.g. i64*[10]*  */
 typedef struct {
     char *base_type;         /* name like "i32", "i64" */
-    AstNodeArray sizes;      /* array of expressions for sizes (may be empty) */
+    AstNodeArray *sizes;      /* array of expressions for sizes (may be empty) */
     size_t pre_stars;        /* '*' before first '[' */
     size_t post_stars;       /* '*' after last ']' */
     int base_is_const;       /* const on base */
+    int is_function;         
+    AstNodeArray *param_types;
+    AstNode *return_type;
 } AstType;
 
 typedef struct {
-    AstNodeArray elements;
+    AstNodeArray *elements;
 } AstInitializeList;
 
 /* Represents one node in the abstract syntax tree (AST). */

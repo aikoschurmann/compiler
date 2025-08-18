@@ -29,6 +29,104 @@ AstNode *ast_create_node(AstNodeType type)
 
 
 
+/* Helper: format a type compactly into a string buffer */
+static void format_type_compact(AstNode *type_node, char *buffer, size_t buffer_size) {
+    if (!type_node || !buffer || buffer_size == 0) {
+        if (buffer && buffer_size > 0) buffer[0] = '\0';
+        return;
+    }
+    
+    buffer[0] = '\0';
+    
+    // Add const qualifier
+    if (type_node->data.ast_type.base_is_const) {
+        strncat(buffer, "const ", buffer_size - strlen(buffer) - 1);
+    }
+    
+    // Handle function types
+    if (type_node->data.ast_type.is_function) {
+        strncat(buffer, "(", buffer_size - strlen(buffer) - 1);
+        
+        // Add parameter types
+        if (type_node->data.ast_type.param_types) {
+            size_t param_count = astnode_array_count(type_node->data.ast_type.param_types);
+            for (size_t i = 0; i < param_count; ++i) {
+                if (i > 0) strncat(buffer, ", ", buffer_size - strlen(buffer) - 1);
+                
+                AstNode *param_type = astnode_array_get(type_node->data.ast_type.param_types, i);
+                if (param_type) {
+                    char param_buffer[256];
+                    format_type_compact(param_type, param_buffer, sizeof(param_buffer));
+                    strncat(buffer, param_buffer, buffer_size - strlen(buffer) - 1);
+                } else {
+                    strncat(buffer, "?", buffer_size - strlen(buffer) - 1);
+                }
+            }
+        }
+        
+        strncat(buffer, ")", buffer_size - strlen(buffer) - 1);
+        
+        // Add return type
+        if (type_node->data.ast_type.return_type) {
+            strncat(buffer, " -> ", buffer_size - strlen(buffer) - 1);
+            char return_buffer[256];
+            format_type_compact(type_node->data.ast_type.return_type, return_buffer, sizeof(return_buffer));
+            strncat(buffer, return_buffer, buffer_size - strlen(buffer) - 1);
+        }
+        
+        // Add array dimensions and stars for function types too!
+        // Add pre-stars
+        for (size_t i = 0; i < type_node->data.ast_type.pre_stars; ++i) {
+            strncat(buffer, "*", buffer_size - strlen(buffer) - 1);
+        }
+        
+        // Add array dimensions
+        if (type_node->data.ast_type.sizes) {
+            size_t n = astnode_array_count(type_node->data.ast_type.sizes);
+            for (size_t i = 0; i < n; ++i) {
+                AstNode *dim = astnode_array_get(type_node->data.ast_type.sizes, i);
+                strncat(buffer, "[", buffer_size - strlen(buffer) - 1);
+                if (dim && dim->node_type == AST_LITERAL && dim->data.literal.value) {
+                    strncat(buffer, dim->data.literal.value, buffer_size - strlen(buffer) - 1);
+                }
+                strncat(buffer, "]", buffer_size - strlen(buffer) - 1);
+            }
+        }
+        
+        // Add post-stars
+        for (size_t i = 0; i < type_node->data.ast_type.post_stars; ++i) {
+            strncat(buffer, "*", buffer_size - strlen(buffer) - 1);
+        }
+    } else {
+        // Regular type
+        const char *base = type_node->data.ast_type.base_type ? type_node->data.ast_type.base_type : "?";
+        strncat(buffer, base, buffer_size - strlen(buffer) - 1);
+        
+        // Add pre-stars
+        for (size_t i = 0; i < type_node->data.ast_type.pre_stars; ++i) {
+            strncat(buffer, "*", buffer_size - strlen(buffer) - 1);
+        }
+        
+        // Add array dimensions
+        if (type_node->data.ast_type.sizes) {
+            size_t n = astnode_array_count(type_node->data.ast_type.sizes);
+            for (size_t i = 0; i < n; ++i) {
+                AstNode *dim = astnode_array_get(type_node->data.ast_type.sizes, i);
+                strncat(buffer, "[", buffer_size - strlen(buffer) - 1);
+                if (dim && dim->node_type == AST_LITERAL && dim->data.literal.value) {
+                    strncat(buffer, dim->data.literal.value, buffer_size - strlen(buffer) - 1);
+                }
+                strncat(buffer, "]", buffer_size - strlen(buffer) - 1);
+            }
+        }
+        
+        // Add post-stars
+        for (size_t i = 0; i < type_node->data.ast_type.post_stars; ++i) {
+            strncat(buffer, "*", buffer_size - strlen(buffer) - 1);
+        }
+    }
+}
+
 /* Helper: free an array of AstNode* items (calls ast_node_free on each) */
 static void free_node_array(AstNode **arr, size_t count) {
     if (!arr) return;
@@ -51,7 +149,10 @@ void ast_node_free(AstNode *node) {
 
     switch (node->node_type) {
         case AST_PROGRAM:
-            astnode_array_free(&node->data.program.decls);
+            if (node->data.program.decls) {
+                astnode_array_free(node->data.program.decls);
+                free(node->data.program.decls);
+            }
             break;
 
         case AST_VARIABLE_DECLARATION:
@@ -67,7 +168,10 @@ void ast_node_free(AstNode *node) {
                 ast_node_free(node->data.function_declaration.return_type);
             free(node->data.function_declaration.name);
             /* params are AstNode* (AST_PARAM nodes) */
-            astnode_array_free(&node->data.function_declaration.params);
+            if (node->data.function_declaration.params) {
+                astnode_array_free(node->data.function_declaration.params);
+                free(node->data.function_declaration.params);
+            }
             if (node->data.function_declaration.body)
                 ast_node_free(node->data.function_declaration.body);
             break;
@@ -79,7 +183,10 @@ void ast_node_free(AstNode *node) {
             break;
 
         case AST_BLOCK:
-            astnode_array_free(&node->data.block.statements);
+            if (node->data.block.statements) {
+                astnode_array_free(node->data.block.statements);
+                free(node->data.block.statements);
+            }
             break;
 
         case AST_IF_STATEMENT:
@@ -161,7 +268,10 @@ void ast_node_free(AstNode *node) {
         case AST_CALL_EXPR:
             if (node->data.call_expr.callee)
                 ast_node_free(node->data.call_expr.callee);
-            astnode_array_free(&node->data.call_expr.args);
+            if (node->data.call_expr.args) {
+                astnode_array_free(node->data.call_expr.args);
+                free(node->data.call_expr.args);
+            }
             break;
 
         case AST_SUBSCRIPT_EXPR:
@@ -173,11 +283,21 @@ void ast_node_free(AstNode *node) {
 
         case AST_TYPE:
             free(node->data.ast_type.base_type);
-            astnode_array_free(&node->data.ast_type.sizes);
+            if (node->data.ast_type.sizes) {
+                astnode_array_free(node->data.ast_type.sizes);
+                free(node->data.ast_type.sizes);
+            }
+            if (node->data.ast_type.param_types) {
+                astnode_array_free(node->data.ast_type.param_types);
+                free(node->data.ast_type.param_types);
+            }
             break;
         
         case AST_INITIALIZER_LIST:
-            astnode_array_free(&node->data.initializer_list.elements);
+            if (node->data.initializer_list.elements) {
+                astnode_array_free(node->data.initializer_list.elements);
+                free(node->data.initializer_list.elements);
+            }
             break;
 
         default:
@@ -342,10 +462,12 @@ void print_ast(AstNode *node, int indent) {
             print_indent(indent);
             printf("Program:\n");
 
-            size_t n = astnode_array_count(&node->data.program.decls);
-            for (size_t i = 0; i < n; ++i) {
-                AstNode *child = astnode_array_get(&node->data.program.decls, i);
-                print_ast(child, indent + 1);
+            if (node->data.program.decls) {
+                size_t n = astnode_array_count(node->data.program.decls);
+                for (size_t i = 0; i < n; ++i) {
+                    AstNode *child = astnode_array_get(node->data.program.decls, i);
+                    print_ast(child, indent + 1);
+                }
             }
             break;
         }           
@@ -378,8 +500,8 @@ void print_ast(AstNode *node, int indent) {
             }
         
             /* use dynarray for params now */
-            if (astnode_array_count(&node->data.function_declaration.params) > 0) {
-                print_params(&node->data.function_declaration.params, indent + 1);
+            if (node->data.function_declaration.params && astnode_array_count(node->data.function_declaration.params) > 0) {
+                print_params(node->data.function_declaration.params, indent + 1);
             } else {
                 print_indent(indent + 1);
                 printf("Parameters: (none)\n");
@@ -407,10 +529,12 @@ void print_ast(AstNode *node, int indent) {
         case AST_BLOCK: {
             print_indent(indent);
             printf("Block:\n");
-            size_t n = astnode_array_count(&node->data.block.statements);
-            for (size_t i = 0; i < n; ++i) {
-                AstNode *stmt = astnode_array_get(&node->data.block.statements, i);
-                print_ast(stmt, indent + 1);
+            if (node->data.block.statements) {
+                size_t n = astnode_array_count(node->data.block.statements);
+                for (size_t i = 0; i < n; ++i) {
+                    AstNode *stmt = astnode_array_get(node->data.block.statements, i);
+                    print_ast(stmt, indent + 1);
+                }
             }
             break;
             
@@ -564,9 +688,14 @@ void print_ast(AstNode *node, int indent) {
                 print_ast(node->data.call_expr.callee, indent + 2);
             }
             /* use dynarray helpers for args */
-            size_t nargs = astnode_array_count(&node->data.call_expr.args);
-            if (nargs) {
-                print_call_args(&node->data.call_expr.args, indent + 1);
+            if (node->data.call_expr.args) {
+                size_t nargs = astnode_array_count(node->data.call_expr.args);
+                if (nargs) {
+                    print_call_args(node->data.call_expr.args, indent + 1);
+                } else {
+                    print_indent(indent + 1);
+                    printf("Args: (none)\n");
+                }
             } else {
                 print_indent(indent + 1);
                 printf("Args: (none)\n");
@@ -593,56 +722,26 @@ void print_ast(AstNode *node, int indent) {
         case AST_TYPE: {
             print_indent(indent);
 
-            const char *base = node->data.ast_type.base_type ? node->data.ast_type.base_type : "(anon)";
-            size_t pre = node->data.ast_type.pre_stars;
-            size_t post = node->data.ast_type.post_stars;
-
-
-            printf("Base-type: ");
-            printf("%s", base);   // base-type
-            for (size_t i = 0; i < pre; ++i) putchar('*');   /* pre-stars before base */
-
-
-            /* array dimensions inline */
-            size_t n = astnode_array_count(&node->data.ast_type.sizes);
-            for (size_t i = 0; i < n; ++i) {
-                AstNode *dim = astnode_array_get(&node->data.ast_type.sizes, i);
-                putchar('[');
-                if (dim) {
-                   printf("dim %d", i);
-                }
-                putchar(']');
+            /* Use the compact formatter for cleaner output */
+            char type_buffer[512];
+            format_type_compact(node, type_buffer, sizeof(type_buffer));
+            
+            if (node->data.ast_type.is_function) {
+                printf("Function-type: %s\n", type_buffer);
+            } else {
+                printf("Type: %s\n", type_buffer);
             }
-        
-            /* post-stars after arrays */
-            for (size_t i = 0; i < post; ++i) putchar('*');
-            printf("\n");
-        
-            /* --- Detailed breakdown (keeps clarity) --- */
-            if (n) {
-                print_indent(indent);
-                printf("ArrayDims:\n");
-                for (size_t i = 0; i < n; ++i) {
-                    AstNode *dim = astnode_array_get(&node->data.ast_type.sizes, i);
-                    print_indent(indent + 1);
-                    printf("Dim %zu:\n", i);
-                    if (dim) {
-                        print_ast(dim, indent + 2);
-                    } else {
-                        print_indent(indent + 2);
-                        printf("(unspecified)\n");
-                    }
-                }
-            }        
             break;
         }
         case AST_INITIALIZER_LIST: {
             print_indent(indent);
             printf("InitializerList:\n");
-            size_t n = astnode_array_count(&node->data.initializer_list.elements);
-            for (size_t i = 0; i < n; ++i) {
-                AstNode *child = astnode_array_get(&node->data.initializer_list.elements, i);
-                print_ast(child, indent + 1);
+            if (node->data.initializer_list.elements) {
+                size_t n = astnode_array_count(node->data.initializer_list.elements);
+                for (size_t i = 0; i < n; ++i) {
+                    AstNode *child = astnode_array_get(node->data.initializer_list.elements, i);
+                    print_ast(child, indent + 1);
+                }
             }
             break;
         }

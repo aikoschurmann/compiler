@@ -23,12 +23,20 @@ AstNode *parse_program(Parser *p, ParseError *err) {
         if (err) create_parse_error(err, "out of memory creating program node", p);
         return NULL;
     }
-    astnode_array_init(&program->data.program.decls);
+    
+    /* Allocate the decls array since it's now a pointer */
+    program->data.program.decls = malloc(sizeof(AstNodeArray));
+    if (!program->data.program.decls) {
+        ast_node_free(program);
+        if (err) create_parse_error(err, "out of memory creating program decls", p);
+        return NULL;
+    }
+    astnode_array_init(program->data.program.decls);
 
     /* declarations */
     AstNode *declaration = parse_declaration(p, err);
     while (declaration) {
-        if (astnode_array_push(&program->data.program.decls, declaration) != 0) {
+        if (astnode_array_push(program->data.program.decls, declaration) != 0) {
             ast_node_free(program);
             return NULL;
         }
@@ -88,7 +96,12 @@ AstNode *parse_function_declaration(Parser *p, ParseError *err) {
         if (err) create_parse_error(err, "out of memory creating function declaration node", p);
         return NULL;
     }
-    astnode_array_init(&func_decl->data.function_declaration.params);
+    func_decl->data.function_declaration.params = astnode_array_create();
+    if (!func_decl->data.function_declaration.params) {
+        ast_node_free(func_decl);
+        if (err) create_parse_error(err, "out of memory creating function params", p);
+        return NULL;
+    }
 
     /* fn */
     Token *fn_tok = consume(p, TOK_FN);
@@ -137,7 +150,12 @@ AstNode *parse_block(Parser *p, ParseError *err) {
         return NULL;
     }
 
-    astnode_array_init(&block->data.block.statements);
+    block->data.block.statements = astnode_array_create();
+    if (!block->data.block.statements) {
+        ast_node_free(block);
+        if (err) create_parse_error(err, "out of memory creating block statements", p);
+        return NULL;
+    }
 
     /* consume '{' */
     Token *lbrace = consume(p, TOK_L_BRACE);
@@ -162,7 +180,7 @@ AstNode *parse_block(Parser *p, ParseError *err) {
             return NULL; // error already set in parse_declaration_stmt
         }
 
-        if (astnode_array_push(&block->data.block.statements, stmt) != 0) {
+        if (astnode_array_push(block->data.block.statements, stmt) != 0) {
             ast_node_free(block);
             return NULL; // out of memory
         }
@@ -206,20 +224,14 @@ AstNode *parse_variable_declaration(Parser *p, ParseError *err)
     /* colon */
     if (!consume(p, TOK_COLON)) { fail_with(p, var_decl, err, "expected ':' after variable name"); return NULL; }
 
-    /* optional 'const' */
-    int is_const = 0;
-    Token *token = current_token(p);
-    if (token && token->type == TOK_CONST) { consume(p, TOK_CONST); is_const = 1; }
-
-    /* type */
+    /* type (now handles const internally) */
     AstNode *type_node = parse_type(p, err);
     if (!type_node) { ast_node_free(var_decl); return NULL; }
-    type_node->data.ast_type.base_is_const = is_const;
     var_decl->data.variable_declaration.type = type_node;
 
     /* optional initializer */
     var_decl->data.variable_declaration.initializer = NULL;
-    token = current_token(p);
+    Token *token = current_token(p);
     if (token && token->type == TOK_ASSIGN) {
         consume(p, TOK_ASSIGN);
 
@@ -239,32 +251,59 @@ AstNode *parse_variable_declaration(Parser *p, ParseError *err)
     return var_decl;
 }
 
-// <Type> ::= <BaseType> [<PostfixType>]
+// <Type> ::= [ CONST ] (<BaseType> [<PostfixType>] | <FunctionType>)
 AstNode *parse_type(Parser *p, ParseError *err) {
     AstNode *type_node = ast_create_node(AST_TYPE);
     if (!type_node) {
         if (err) create_parse_error(err, "out of memory creating type node", p);
         return NULL;
     }
-    astnode_array_init(&type_node->data.ast_type.sizes);
+    
+    /* Initialize all fields */
+    type_node->data.ast_type.sizes = astnode_array_create();
+    if (!type_node->data.ast_type.sizes) {
+        ast_node_free(type_node);
+        if (err) create_parse_error(err, "out of memory creating type sizes", p);
+        return NULL;
+    }
+    type_node->data.ast_type.param_types = NULL; /* will allocate if needed */
+    type_node->data.ast_type.return_type = NULL;
+    type_node->data.ast_type.is_function = 0;
+    type_node->data.ast_type.base_is_const = 0;
+    type_node->data.ast_type.pre_stars = 0;
+    type_node->data.ast_type.post_stars = 0;
 
-    /* base type (doesn't support custom types yet) */
+    /* optional 'const' */
     Token *token = current_token(p);
-    if (!token || token->type < TOK_I32 || token->type > TOK_F64) {
-        fail_with(p, type_node, err, "expected base type (i32, f64, etc.)");
-        return NULL;
+    if (token && token->type == TOK_CONST) {
+        consume(p, TOK_CONST);
+        type_node->data.ast_type.base_is_const = 1;
+        token = current_token(p);
     }
 
-    char *base_type_str = token->lexeme ? strdup(token->lexeme) : NULL;
-    if (token->lexeme && !base_type_str) {
-        fail_with(p, type_node, err, "out of memory copying base type string");
-        return NULL;
+    /* Check for function type: LPAREN */
+    if (token && token->type == TOK_LPAREN) {
+        /* Parse function type but don't return yet - need to check for postfix */
+        if (!parse_function_type_inline(p, type_node, err)) {
+            return NULL;
+        }
+    } else {
+        /* Parse base type */
+        if (!token || token->type < TOK_I32 || token->type > TOK_F64) {
+            fail_with(p, type_node, err, "expected base type (i32, f64, etc.) or function type");
+            return NULL;
+        }
+
+        char *base_type_str = token->lexeme ? strdup(token->lexeme) : NULL;
+        if (token->lexeme && !base_type_str) {
+            fail_with(p, type_node, err, "out of memory copying base type string");
+            return NULL;
+        }
+        consume(p, token->type);
+        type_node->data.ast_type.base_type = base_type_str;
     }
-    consume(p, token->type);
-    type_node->data.ast_type.base_type = base_type_str;
 
-
-    /* optional postfix type */
+    /* optional postfix type (applies to both base types and function types) */
     token = current_token(p);
     if (token && (token->type == TOK_STAR || token->type == TOK_L_SQB)) {
         // parse postfix takes ownership of type_node and frees it on error
@@ -299,7 +338,7 @@ int parse_postfix_type(Parser *p, AstNode *type_node, ParseError* err) {
             AstNode *const_expr = parse_expression(p, err);
             if (!const_expr) { return 1; }
             // type_size_push(type_node, const_expr);
-            if(astnode_array_push(&type_node->data.ast_type.sizes, const_expr) != 0){
+            if(astnode_array_push(type_node->data.ast_type.sizes, const_expr) != 0){
                 if (err) create_parse_error(err, "out of memory pushing declaration", p);
                 ast_node_free(const_expr);
                 return 1;
@@ -313,7 +352,7 @@ int parse_postfix_type(Parser *p, AstNode *type_node, ParseError* err) {
             consume(p, TOK_R_SQB);
         } else {
             //printf(type_node->data.type.ndim_count);
-            if(astnode_array_push(&type_node->data.ast_type.sizes, NULL) != 0){
+            if(astnode_array_push(type_node->data.ast_type.sizes, NULL) != 0){
                 if (err) create_parse_error(err, "out of memory pushing declaration", p);
                 return 1;
             }
@@ -331,6 +370,93 @@ int parse_postfix_type(Parser *p, AstNode *type_node, ParseError* err) {
     }
 
     return 0;
+}
+
+// <FunctionType> ::= LPAREN [ <ParamTypeList> ] RPAREN [ ARROW <Type> ]
+// <ParamTypeList> ::= <Type> { COMMA <Type> }
+// Returns 1 on success, 0 on failure (fills type_node in place)
+int parse_function_type_inline(Parser *p, AstNode *type_node, ParseError *err) {
+    if (!type_node) {
+        if (err) create_parse_error(err, "null type_node in parse_function_type_inline", p);
+        return 0;
+    }
+
+    // Mark this as a function type
+    type_node->data.ast_type.is_function = 1;
+    type_node->data.ast_type.base_type = strdup("function");
+    if (!type_node->data.ast_type.base_type) {
+        if (err) create_parse_error(err, "out of memory copying function base type", p);
+        return 0;
+    }
+
+    // Allocate param_types array
+    type_node->data.ast_type.param_types = astnode_array_create();
+    if (!type_node->data.ast_type.param_types) {
+        if (err) create_parse_error(err, "out of memory creating param_types array", p);
+        return 0;
+    }
+
+    // Consume LPAREN
+    if (!consume(p, TOK_LPAREN)) {
+        if (err) create_parse_error(err, "expected '(' at start of function type", p);
+        return 0;
+    }
+
+    // Parse optional parameter type list
+    Token *token = current_token(p);
+    if (token && token->type != TOK_RPAREN) {
+        // Parse first parameter type
+        AstNode *param_type = parse_type(p, err);
+        if (!param_type) {
+            return 0;
+        }
+        
+        if (astnode_array_push(type_node->data.ast_type.param_types, param_type) != 0) {
+            ast_node_free(param_type);
+            if (err) create_parse_error(err, "out of memory pushing parameter type", p);
+            return 0;
+        }
+
+        // Parse additional parameter types
+        token = current_token(p);
+        while (token && token->type == TOK_COMMA) {
+            consume(p, TOK_COMMA);
+            
+            param_type = parse_type(p, err);
+            if (!param_type) {
+                return 0;
+            }
+            
+            if (astnode_array_push(type_node->data.ast_type.param_types, param_type) != 0) {
+                ast_node_free(param_type);
+                if (err) create_parse_error(err, "out of memory pushing parameter type", p);
+                return 0;
+            }
+            
+            token = current_token(p);
+        }
+    }
+
+    // Consume RPAREN
+    if (!consume(p, TOK_RPAREN)) {
+        if (err) create_parse_error(err, "expected ')' after function parameter types", p);
+        return 0;
+    }
+
+    // Parse optional return type with ARROW
+    token = current_token(p);
+    if (token && token->type == TOK_ARROW) {
+        consume(p, TOK_ARROW);
+        
+        AstNode *return_type = parse_type(p, err);
+        if (!return_type) {
+            return 0;
+        }
+        
+        type_node->data.ast_type.return_type = return_type;
+    }
+
+    return 1;
 }
 
 
@@ -460,7 +586,12 @@ AstNode *parse_initializer_list(Parser *p, AstNode *type_node, ParseError *err) 
         if (err) create_parse_error(err, "out of memory creating initializer node", p);
         return NULL;
     }
-    astnode_array_init(&init->data.initializer_list.elements);
+    init->data.initializer_list.elements = astnode_array_create();
+    if (!init->data.initializer_list.elements) {
+        ast_node_free(init);
+        if (err) create_parse_error(err, "out of memory creating initializer elements", p);
+        return NULL;
+    }
 
     Token *tok = current_token(p);
     if (!tok) {
@@ -490,7 +621,8 @@ AstNode *parse_initializer_list(Parser *p, AstNode *type_node, ParseError *err) 
             element = parse_initializer_list(p, NULL, err);
             if (!element) {
                 /* err already set by recursive call; clean up */
-                astnode_array_free(&init->data.initializer_list.elements);
+                astnode_array_free(init->data.initializer_list.elements);
+                free(init->data.initializer_list.elements);
                 ast_node_free(init);
                 return NULL;
             }
@@ -498,17 +630,19 @@ AstNode *parse_initializer_list(Parser *p, AstNode *type_node, ParseError *err) 
             /* normal expression */
             element = parse_expression(p, err);
             if (!element) {
-                astnode_array_free(&init->data.initializer_list.elements);
+                astnode_array_free(init->data.initializer_list.elements);
+                free(init->data.initializer_list.elements);
                 ast_node_free(init);
                 return NULL; /* parse_expression set err */
             }
         }
 
         /* push element into the initializer array */
-        if (astnode_array_push(&init->data.initializer_list.elements, element) != 0) {
+        if (astnode_array_push(init->data.initializer_list.elements, element) != 0) {
             if (err) create_parse_error(err, "out of memory pushing initializer element", p);
             ast_node_free(element);
-            astnode_array_free(&init->data.initializer_list.elements);
+            astnode_array_free(init->data.initializer_list.elements);
+            free(init->data.initializer_list.elements);
             ast_node_free(init);
             return NULL;
         }
@@ -820,7 +954,12 @@ AstNode *parse_postfix(Parser *p, ParseError *err) {
                 return NULL;
             }
 
-            astnode_array_init(&func_call->data.call_expr.args);
+            func_call->data.call_expr.args = astnode_array_create();
+            if (!func_call->data.call_expr.args) {
+                ast_node_free(func_call);
+                if (err) create_parse_error(err, "out of memory creating call args", p);
+                return NULL;
+            }
 
         
             /* Parse arguments */
@@ -960,7 +1099,7 @@ int parse_argument_list(Parser *p, AstNode* call, ParseError *err) {
         }
 
         /* push the pointer *address* into the dynarray (store AstNode*) */
-        if (astnode_array_push(&call->data.call_expr.args, argument) != 0) {
+        if (astnode_array_push(call->data.call_expr.args, argument) != 0) {
             if (err) create_parse_error(err, "out of memory pushing argument", p);
             ast_node_free(argument);
             return 0;
@@ -1051,7 +1190,7 @@ int parse_parameter_list(Parser *p, AstNode *func_decl, ParseError *err) {
         }
 
         /* push the parameter into the function declaration */
-        if (astnode_array_push(&func_decl->data.function_declaration.params, param) != 0) {
+        if (astnode_array_push(func_decl->data.function_declaration.params, param) != 0) {
             if (err) create_parse_error(err, "out of memory pushing parameter", p);
             ast_node_free(param);
             return 0;

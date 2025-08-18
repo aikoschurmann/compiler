@@ -1,10 +1,18 @@
 #include "ast_dyn_node_array.h"
 #include "ast.h"
+#include <stdlib.h>
 
 
 /* Initialize the array. */
 void astnode_array_init(AstNodeArray *arr) {
     dynarray_init(&arr->da, sizeof(AstNode *));
+}
+
+AstNodeArray *astnode_array_create(void) {
+    AstNodeArray *arr = malloc(sizeof(AstNodeArray));
+    if (!arr) return NULL;
+    astnode_array_init(arr);
+    return arr;
 }
 
 /* Push a node pointer. Returns 0 on success, -1 on OOM. */
@@ -32,6 +40,7 @@ AstNode *astnode_array_get(AstNodeArray *arr, size_t i) {
  * If you prefer NOT to free the contained nodes, use dynarray_free(&arr->da) directly.
  */
 void astnode_array_free(AstNodeArray *arr) {
+    if(!arr) return;
     size_t n = astnode_array_count(arr);
     for (size_t i = 0; i < n; ++i) {
         AstNode *node = astnode_array_get(arr, i);

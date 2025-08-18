@@ -13,6 +13,9 @@ typedef struct {
 /* Initialize the array. */
 void astnode_array_init(AstNodeArray *arr);
 
+/* Create and initialize a new AstNodeArray on the heap. Returns NULL on OOM. */
+AstNodeArray *astnode_array_create(void);
+
 /* Push a node pointer. Returns 0 on success, -1 on OOM. */
 int astnode_array_push(AstNodeArray *arr, AstNode *node);
 

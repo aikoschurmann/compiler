@@ -20,14 +20,16 @@ Type *asttype_to_type(AstType *ast_node_type) {
     }
 
     /* arrays (left-to-right in sizes array) */
-    size_t n = astnode_array_count(&ast_node_type->sizes);
-    for (size_t i = 0; i < n; ++i) {
-        AstNode *child = astnode_array_get(&ast_node_type->sizes, i);
-        size_t arrsize = 0;
-        if (child && child->node_type == AST_LITERAL && child->data.literal.value) {
-            arrsize = (size_t)atoi(child->data.literal.value);
+    if (ast_node_type->sizes) {
+        size_t n = astnode_array_count(ast_node_type->sizes);
+        for (size_t i = 0; i < n; ++i) {
+            AstNode *child = astnode_array_get(ast_node_type->sizes, i);
+            size_t arrsize = 0;
+            if (child && child->node_type == AST_LITERAL && child->data.literal.value) {
+                arrsize = (size_t)atoi(child->data.literal.value);
+            }
+            base = type_make_array(base, arrsize, 0);
         }
-        base = type_make_array(base, arrsize, 0);
     }
 
     /* post-stars (e.g., int *[] * ) */
@@ -46,14 +48,17 @@ Type *astfunction_to_type(AstFunctionDeclaration *ast_fn) {
         ret = asttype_to_type(&ast_fn->return_type->data.ast_type);
     }
 
-    size_t n = astnode_array_count(&ast_fn->params);
+    size_t n = 0;
+    if (ast_fn->params) {
+        n = astnode_array_count(ast_fn->params);
+    }
     if (n == 0) {
         return type_make_function(ret, NULL, 0, 0);
     }
 
     Type **params = xmalloc(n * sizeof(Type *));
     for (size_t i = 0; i < n; ++i) {
-        AstNode *pnode = astnode_array_get(&ast_fn->params, i);
+        AstNode *pnode = astnode_array_get(ast_fn->params, i);
         if (pnode && pnode->node_type == AST_PARAM) {
             AstNode *ptype = pnode->data.param.type;
             if (ptype && ptype->node_type == AST_TYPE) {

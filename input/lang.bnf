@@ -34,7 +34,7 @@
                 | <FunctionDeclaration>
 
 <VariableDeclaration> ::=
-    IDENTIFIER COLON [ CONST ] <Type> [ ASSIGN ( <Expression> | <InitializerList> ) ] 
+    IDENTIFIER COLON <Type> [ ASSIGN ( <Expression> | <InitializerList> ) ] 
 <VariableDeclarationStmt> ::= <VariableDeclaration> SEMICOLON
 
 <InitializerList> ::= L_BRACE [ <InitElements> ] R_BRACE
@@ -105,17 +105,17 @@
                | L_SQB <Expression> R_SQB
                | LPAREN [ <ArgList> ] RPAREN 
 
-<Primary> ::= INTEGER | FLOAT | BOOLEAN | STRING
-            | CHAR_LITERAL | IDENTIFIER
+<Primary> ::= INTEGER | FLOAT | BOOLEAN | IDENTIFIER
             | LPAREN <Expression> RPAREN
 
 <ArgList> ::= (<Expression> | <InitializerList>) { COMMA (<Expression> | <InitializerList>) }
 
-<Type>     ::= <BaseType> [<PostfixType>]
+<Type>     ::= [ CONST ] (<BaseType> | <FunctionType>) [<PostfixType>]
+<FunctionType> ::=  LPAREN <Type> { COMMA <Type> } RPAREN [ ARROW <Type> ]
 
 <PostfixType> ::= {STAR} {L_SQB [<ConstExpr>] R_SQB} {STAR} 
                  
-<BaseType> ::= I32 | I64 | BOOL | CHAR | F32 | F64
+<BaseType> ::= I32 | I64 | BOOL | F32 | F64
 
 
 <ConstExpr>    ::= <ConstAdd>
