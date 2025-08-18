@@ -1,2 +1,0 @@
-test_pre: i32*[10];
-test_post: i32[10]*;
