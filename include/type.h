@@ -36,5 +36,7 @@ Type *type_make_array(Type *of, size_t size, int is_const);
 Type *type_make_function(Type *return_type, Type **params, size_t param_count, int is_const);
 
 void type_print(Type *t);
+void type_print_hierarchical(Type *t);
+void type_print_hierarchical_with_indent(Type *t, int base_indent);
 char *type_to_string(Type *t);
 void type_free(Type *t);

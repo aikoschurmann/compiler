@@ -152,6 +152,10 @@ int run_compiler_once(const CompilerOptions *opts) {
             puts("=== Symbol Table ===");
             scope_print(&global_scope);
         }
+        if(opts->show_hierarchical_types){
+            puts("=== Hierarchical Type Structure ===");
+            scope_print_hierarchical(&global_scope);
+        }
         
 
         /* free symbol maps now; if you need them later, don't free here */

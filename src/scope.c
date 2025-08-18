@@ -105,6 +105,53 @@ void scope_print(Scope *scope) {
     }
 }
 
+static void scope_print_bucket_hierarchical(DynArray *bucket, int indent) {
+    if (!bucket) return;
+    for (size_t j = 0; j < bucket->count; ++j) {
+        KeyValue *kv = (KeyValue*)dynarray_get(bucket, j);
+        char *key = (char*)kv->key;
+        Symbol *sym = (Symbol*)kv->value;
+
+        print_indent(indent);
+        if (key) printf("%s:\n", key);
+        else printf("<anon>:\n");
+
+        if (sym && sym->sem_type) {
+            type_print_hierarchical_with_indent(sym->sem_type, indent + 2);
+        } else {
+            for (int i = 0; i < indent + 2; i++) printf(" ");
+            printf("<NULL-symbol>\n");
+        }
+    }
+}
+
+void scope_print_hierarchical(Scope *scope) {
+    if (!scope) {
+        printf("NULL scope\n");
+        return;
+    }
+
+    printf("globalScope\n");
+
+    /* Functions */
+    if (scope->functions) {
+        printf("  Functions:\n");
+        for (size_t i = 0; i < scope->functions->table->bucket_count; ++i) {
+            DynArray *bucket = &scope->functions->table->buckets[i];
+            scope_print_bucket_hierarchical(bucket, 4);
+        }
+    }
+
+    /* Variables */
+    if (scope->variables) {
+        printf("  Variables:\n");
+        for (size_t i = 0; i < scope->variables->table->bucket_count; ++i) {
+            DynArray *bucket = &scope->variables->table->buckets[i];
+            scope_print_bucket_hierarchical(bucket, 4);
+        }
+    }
+}
+
 void free_scope_maps(Scope *s) {
     if (!s) return;
     if (s->functions) {

@@ -17,6 +17,7 @@ static void print_usage(const char *progname) {
         "  --time          Print timing for each phase (ms)\n"
         "  --test          Run the built-in test suite\n"
         "  --sym-table     Print symbol table\n"
+        "  --type-tree     Print hierarchical type structures\n"
         "  --help, -h      Show this message\n",
         progname);
 }
@@ -31,6 +32,7 @@ int main(int argc, char **argv) {
     opts.dump_ast = false;
     opts.show_time = false;
     opts.show_symbol_table = false;
+    opts.show_hierarchical_types = false;
     opts.filename = NULL;
 
     for (int i = 1; i < argc; ++i) {
@@ -44,6 +46,8 @@ int main(int argc, char **argv) {
             run_tests = true;
         } else if (strcmp(argv[i], "--sym-table") == 0) {
             opts.show_symbol_table = true;
+        } else if (strcmp(argv[i], "--type-tree") == 0) {
+            opts.show_hierarchical_types = true;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             print_usage(argv[0]); 
             return EXIT_SUCCESS;

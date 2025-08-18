@@ -122,19 +122,30 @@ static void type_to_string_append(Type *t, sbuf *sb) {
             break;
 
         case TYPE_POINTER:
-            /* print inner then '*' */
-            type_to_string_append(t->pointer.to, sb);
-            sbuf_append(sb, "*");
+            if (t->pointer.to && t->pointer.to->kind == TYPE_FUNCTION) {
+                sbuf_append(sb, "(");
+                type_to_string_append(t->pointer.to, sb);
+                sbuf_append(sb, ")*");
+            } else {
+                type_to_string_append(t->pointer.to, sb);
+                sbuf_append(sb, "*");
+            }
             break;
 
         case TYPE_ARRAY:
-            type_to_string_append(t->array.of, sb);
+            if (t->array.of && t->array.of->kind == TYPE_FUNCTION) {
+                sbuf_append(sb, "(");
+                type_to_string_append(t->array.of, sb);
+                sbuf_append(sb, ")");
+            } else {
+                type_to_string_append(t->array.of, sb);
+            }
             if (t->array.size == 0) sbuf_append(sb, "[]");
             else sbuf_appendf(sb, "[%zu]", t->array.size);
             break;
 
         case TYPE_FUNCTION:
-            sbuf_append(sb, "(");
+            sbuf_append(sb, "fn(");
             for (size_t i = 0; i < t->function.param_count; ++i) {
                 if (t->function.params[i]) {
                     type_to_string_append(t->function.params[i], sb);
@@ -164,16 +175,28 @@ void type_print(Type *t) {
             printf("%s", t->primitive.name);
             break;
         case TYPE_POINTER:
-            type_print(t->pointer.to);
-            printf("*");
+            if (t->pointer.to && t->pointer.to->kind == TYPE_FUNCTION) {
+                printf("(");
+                type_print(t->pointer.to);
+                printf(")*");
+            } else {
+                type_print(t->pointer.to);
+                printf("*");
+            }
             break;
         case TYPE_ARRAY:
-            type_print(t->array.of);
+            if (t->array.of && t->array.of->kind == TYPE_FUNCTION) {
+                printf("(");
+                type_print(t->array.of);
+                printf(")");
+            } else {
+                type_print(t->array.of);
+            }
             if (t->array.size == 0) printf("[]");
             else printf("[%zu]", t->array.size);
             break;
         case TYPE_FUNCTION:
-            printf("(");
+            printf("fn(");
             for (size_t i = 0; i < t->function.param_count; ++i) {
                 if (t->function.params[i]) type_print(t->function.params[i]);
                 else printf("<unknown>");
@@ -229,4 +252,86 @@ void type_free(Type *t) {
             break;
     }
     free(t);
+}
+
+/* -----------------------
+ * Hierarchical type printer
+ * --------------------- */
+
+static void type_print_hierarchical_impl(Type *t, int depth) {
+    if (!t) {
+        for (int i = 0; i < depth; i++) printf(" ");
+        printf("NULL\n");
+        return;
+    }
+    
+    for (int i = 0; i < depth; i++) printf(" ");
+    
+    if (t->is_const) printf("const ");
+    
+    switch (t->kind) {
+        case TYPE_PRIMITIVE:
+            printf("Primitive: %s\n", t->primitive.name);
+            break;
+            
+        case TYPE_POINTER:
+            printf("Pointer to:\n");
+            type_print_hierarchical_impl(t->pointer.to, depth + 2);
+            break;
+            
+        case TYPE_ARRAY:
+            if (t->array.size == 0) {
+                printf("Array[dynamic] of:\n");
+            } else {
+                printf("Array[%zu] of:\n", t->array.size);
+            }
+            type_print_hierarchical_impl(t->array.of, depth + 2);
+            break;
+        case TYPE_FUNCTION:
+            printf("Function type:\n");
+            
+            for (int i = 0; i < depth + 2; i++) printf(" ");
+            printf("Parameters (%zu):\n", t->function.param_count);
+            if (t->function.param_count == 0) {
+                for (int i = 0; i < depth + 4; i++) printf(" ");
+                printf("(none)\n");
+            } else {
+                for (size_t j = 0; j < t->function.param_count; ++j) {
+                    for (int i = 0; i < depth + 4; i++) printf(" ");
+                    printf("Param[%zu]:\n", j);
+                    type_print_hierarchical_impl(t->function.params[j], depth + 6);
+                }
+            }
+            
+            for (int i = 0; i < depth + 2; i++) printf(" ");
+            printf("Return type:\n");
+            if (t->function.return_type) {
+                type_print_hierarchical_impl(t->function.return_type, depth + 4);
+            } else {
+                for (int i = 0; i < depth + 4; i++) printf(" ");
+                printf("void\n");
+            }
+            break;
+            
+        default:
+            printf("Unknown Type\n");
+            break;
+    }
+}
+
+void type_print_hierarchical(Type *t) {
+    if (!t) {
+        printf("NULL\n");
+        return;
+    }
+    type_print_hierarchical_impl(t, 0);
+}
+
+void type_print_hierarchical_with_indent(Type *t, int base_indent) {
+    if (!t) {
+        for (int i = 0; i < base_indent; i++) printf(" ");
+        printf("NULL\n");
+        return;
+    }
+    type_print_hierarchical_impl(t, base_indent);
 }

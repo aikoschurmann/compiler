@@ -9,6 +9,7 @@ typedef struct {
     bool dump_ast;
     bool show_time;
     bool show_symbol_table;
+    bool show_hierarchical_types;
     const char *filename;
 } CompilerOptions;
 
