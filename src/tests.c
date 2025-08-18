@@ -233,6 +233,66 @@ static void run_all_tests(void) {
     RUN("// single comment\nfn main() { return; }", "single line comment", false);
     RUN("fn main() { s: str = \"unterminated; }", "unterminated string literal", true);
 
+    /* ----- Type System Tests ----- */
+    
+    /* Basic function types */
+    RUN("fn main() { callback: fn(i32) -> i32; }", "simple function type", false);
+    RUN("fn main() { no_params: fn() -> i32; }", "function type with no parameters", false);
+    RUN("fn main() { multi_param: fn(i32, f64, bool) -> i32; }", "function type with multiple parameters", false);
+    RUN("fn main() { void_func: fn(i32); }", "function type returning void", false);
+    
+    /* Array types with expressions */
+    RUN("fn main() { arr: i32[10]; }", "array with literal dimension", false);
+    RUN("fn main() { arr: i32[x + 1]; }", "array with expression dimension", false);
+    RUN("fn main() { arr: i32[factorial(5)]; }", "array with function call dimension", false);
+    RUN("fn main() { multi: i32[10][20]; }", "multi-dimensional array", false);
+    
+    /* Pointer types */
+    RUN("fn main() { ptr: i32*; }", "simple pointer type", false);
+    RUN("fn main() { double_ptr: i32**; }", "double pointer type", false);
+    RUN("fn main() { triple_ptr: i32***; }", "triple pointer type", false);
+    
+    /* Type precedence and grouping */
+    RUN("fn main() { ptr_to_array: (i32[10])*; }", "pointer to array (grouped)", false);
+    RUN("fn main() { array_of_ptrs: i32*[10]; }", "array of pointers", false);
+    RUN("fn main() { func_ptr: (fn(i32) -> i32)*; }", "pointer to function (grouped)", false);
+    RUN("fn main() { ptr_to_func_array: (fn(i32) -> i32[10])*; }", "complex grouped type", false);
+    
+    /* Function types returning complex types */
+    RUN("fn main() { get_array: fn() -> i32[10]; }", "function returning array", false);
+    RUN("fn main() { get_ptr: fn() -> i32*; }", "function returning pointer", false);
+    RUN("fn main() { get_func: fn() -> fn(i32) -> i32; }", "function returning function", false);
+    RUN("fn main() { get_ptr_array: fn() -> i32*[10]; }", "function returning array of pointers", false);
+    
+    /* Nested function types (higher-order) */
+    RUN("fn main() { higher_order: fn(fn(i32) -> i32) -> i32; }", "function taking function parameter", false);
+    RUN("fn main() { curry: fn(i32) -> fn(i32) -> i32; }", "curried function type", false);
+    RUN("fn main() { complex: fn(fn(i32, i32) -> i32, i32*) -> fn(i32) -> i32*; }", "complex nested function type", false);
+    
+    /* Arrays of function types */
+    RUN("fn main() { callbacks: (fn(i32) -> i32)[100]; }", "array of function types", false);
+    RUN("fn main() { handlers: (fn(i64, i64) -> i64)[10]; }", "array of int functions", false);
+
+    /* Complex combinations */
+    RUN("fn main() { complex1: fn(i32*[10]) -> (i32[20])*; }", "function with complex param and return", false);
+    RUN("fn main() { complex2: (fn(i32) -> i32*)[10]*; }", "pointer to array of function pointers", false);
+    RUN("fn main() { complex3: fn(fn(i32*) -> i32[]*) -> fn(i32) -> i32**; }", "deeply nested function types", false);
+    
+    /* Type parsing error cases */
+    RUN("fn main() { bad1: fn(i32 -> i32; }", "missing closing paren in function type", true);
+    RUN("fn main() { bad2: fn(i32) ->; }", "missing return type in function", true);
+    RUN("fn main() { bad3: i32[; }", "missing closing bracket in array", true);
+    RUN("fn main() { bad4: i32[x +; }", "incomplete expression in array dimension", true);
+    RUN("fn main() { bad5: (i32; }", "missing closing paren in grouped type", true);
+    RUN("fn main() { bad6: fn(,i32) -> i32; }", "leading comma in function parameters", true);
+    RUN("fn main() { bad7: fn(i32,) -> i32; }", "trailing comma in function parameters", true);
+    
+    /* Const qualifiers with complex types */
+    RUN("fn main() { const_ptr: const i32*; }", "const pointer", false);
+    RUN("fn main() { const_array: const i32[10]; }", "const array", false);
+    RUN("fn main() { const_func: const fn(i32) -> i32; }", "const function type", false);
+    RUN("fn main() { const_complex: const (i32*[10])*; }", "const complex type", false);
+
     /* ----- Edge cases ----- */
     RUN("", "empty program", false);
     RUN("   \n\t  ", "whitespace only program", false);
@@ -350,6 +410,70 @@ static void run_all_tests(void) {
       "return; } "
       "fn main() { combined_test(); }",
       "combined stress: quicksort + binary search + selection sort",
+      false
+    );
+
+    /* 9) Complex type system integration tests */
+    RUN(
+      "fn create_callback_table() -> fn(i32) -> i32[100] { "
+      "table: fn(i32) -> i32[100]; "
+      "return table; } "
+      "fn process_with_callback(data: i32*[50], callback: fn(i32) -> i32) -> i32* { "
+      "result: i32*; "
+      "return result; } "
+      "fn main() { "
+      "callbacks: fn(i32) -> i32[100] = create_callback_table(); "
+      "data_arrays: i32*[50]; "
+      "processor: fn(i32*[50], fn(i32) -> i32) -> i32* = process_with_callback; "
+      "result: i32* = processor(data_arrays, callbacks[0]); }",
+      "complex type system integration with function arrays and callbacks",
+      false
+    );
+
+    /* 10) Function type composition and higher-order functions */
+    RUN(
+      "fn compose(f: fn(i32) -> i32, g: fn(i32) -> i32) -> fn(i32) -> i32 { "
+      "composed: fn(i32) -> i32; "
+      "return composed; } "
+      "fn map_array(arr: i32[10]*, mapper: fn(i32) -> i32) -> i32[10]* { "
+      "result: i32[10]*; "
+      "return result; } "
+      "fn main() { "
+      "increment: fn(i32) -> i32; "
+      "double_val: fn(i32) -> i32; "
+      "inc_then_double: fn(i32) -> i32 = compose(increment, double_val); "
+      "numbers: i32[10]*; "
+      "transformed: i32[10]* = map_array(numbers, inc_then_double); }",
+      "function composition and higher-order functions with complex types",
+      false
+    );
+
+    /* 11) Multi-dimensional arrays with function types */
+    RUN(
+      "fn create_matrix() -> (i32*[10])*[20] { "
+      "matrix: (i32*[10])*[20]; "
+      "return matrix; } "
+      "fn process_matrix(m: (i32*[10])*[20], processor: fn(i32) -> i32) { "
+      "return; } "
+      "fn main() { "
+      "data: (i32*[10])*[20] = create_matrix(); "
+      "handler: fn(i32) -> i32; "
+      "process_matrix(data, handler); }",
+      "multi-dimensional arrays with pointers and function types",
+      false
+    );
+
+    /* 12) Deeply nested function type declarations */
+    RUN(
+      "fn create_nested_processor() -> fn(fn(fn(i32) -> i32) -> i32) -> fn(i32) -> i32 { "
+      "processor: fn(fn(fn(i32) -> i32) -> i32) -> fn(i32) -> i32; "
+      "return processor; } "
+      "fn main() { "
+      "base_func: fn(i32) -> i32; "
+      "combiner: fn(fn(i32) -> i32) -> i32; "
+      "meta_processor: fn(fn(fn(i32) -> i32) -> i32) -> fn(i32) -> i32 = create_nested_processor(); "
+      "result: fn(i32) -> i32 = meta_processor(combiner); }",
+      "deeply nested function types and meta-programming patterns",
       false
     );
 
